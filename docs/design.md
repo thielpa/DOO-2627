@@ -116,6 +116,6 @@ The system is divided into four subsystems:
 | This design document | `docs/design.md` |
 | Domain model (UML class diagram) | `docs/DomainModel.pdf` |
 | Domain model (draw.io XML) | `docs/DomainModel.drawio` |
-| Component diagram (draw.io XML) | `docs/Component_Diagram.drawio` |
-| Component diagram (PDF) | `docs/Component_Diagram.pdf` |
+| Component diagram (draw.io XML) | `docs/ComponentDiagram.drawio` |
+| Component diagram (PDF) | `docs/ComponentDiagram.pdf` |
 | Event Storming source | `docs/Eventstorming.pdf` |
