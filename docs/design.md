@@ -43,17 +43,17 @@ The domain model captures all main concepts of the game and how they relate to e
 - An **AnswerOption** belongs to a Question and has a text and a flag indicating whether it is correct.
 - A **Score** records the points earned by a player in a match and when it was calculated.
 - **Reward** is an abstract class with a name, description, and condition string. It has two concrete subclasses:
-  - **Badge** — adds a logo image.
-  - **DailyQuest** — adds a validity date and a reward points value.
+  - **Badge**: adds a logo image.
+  - **DailyQuest**: adds a validity date and a reward points value.
 - A **RewardProgress** links a Player to a Reward and tracks progress, status (STARTED, COMPLETED), and whether the reward was claimed.
 ### Why these decisions?
 
-- **`Reward` is abstract** — `Badge` and `DailyQuest` share name, description, and condition; only type-specific attributes differ.
-- **`RewardProgress` as a separate class** — it sits between Player and Reward, tracking progress and claiming without changing either class.
-- **`PlayerAnswer` in the Round** — captures time needed per question, required for scoring and deadline enforcement.
-- **`MatchInvitation` separated from `FriendRequest`** — game invites and social friend requests have different lifecycles.
-- **`Lobby` as matchmaking aggregate** — maps directly to the Matchmaking bounded context from Event Storming.
-- **`Tournament` owns `TournamentGroup` and `EliminationRound`** — group and elimination phases have different structures, so each is a distinct owned object.
+- **`Reward` is abstract**: `Badge` and `DailyQuest` share name, description, and condition; only type-specific attributes differ.
+- **`RewardProgress` as a separate class**: it sits between Player and Reward, tracking progress and claiming without changing either class.
+- **`PlayerAnswer` in the Round**: captures time needed per question, required for scoring and deadline enforcement.
+- **`MatchInvitation` separated from `FriendRequest`**: game invites and social friend requests have different lifecycles.
+- **`Lobby` as matchmaking aggregate**: maps directly to the Matchmaking bounded context from Event Storming.
+- **`Tournament` owns `TournamentGroup` and `EliminationRound`**: group and elimination phases have different structures, so each is a distinct owned object.
 
 ---
 
@@ -67,10 +67,10 @@ The domain model captures all main concepts of the game and how they relate to e
 The system is divided into four subsystems:
 
 **1. Client Subsystem**
-- `React Web App (SPA)` — the single-page application running in the browser. It communicates with the backend through a UI Interface over HTTPS / REST.
+- `React Web App (SPA)`: the single-page application running in the browser. It communicates with the backend through a UI Interface over HTTPS / REST.
 
 **2. Server Subsystem / API**
-- `Backend API Server (Hono / Bun)` — the entry point for all client requests. It routes traffic to the internal services.
+- `Backend API Server (Hono / Bun)`: the entry point for all client requests. It routes traffic to the internal services.
 - Five internal services, each aligned with a Bounded Context from the Event Storming:
 
 | Service | Responsibilities |
@@ -82,12 +82,12 @@ The system is divided into four subsystems:
 | Social | Friend Management (invite, accept, expire after 48 h), Results Sharing, push notification policy. |
 
 **3. Persistence & Cache**
-- `Main Database (PostgreSQL / SQLite)` — stores all persistent data. All services connect through a Database Interface.
-- `In-Memory Cache (Redis / Valkey)` — used for fast access (e.g., active lobbies, leaderboard). All services connect through a Cache Interface.
+- `Main Database (PostgreSQL / SQLite)`: stores all persistent data. All services connect through a Database Interface.
+- `In-Memory Cache (Redis / Valkey)`: used for fast access (e.g., active lobbies, leaderboard). All services connect through a Cache Interface.
 
 **4. External Systems**
-- `Identity Provider` — used by the Account/Profile service for authentication (HTTPS).
-- `Notification Provider` — used by the Match service (question ready notification) and the Social service (friend invite notification) via HTTPS / Events.
+- `Identity Provider`: used by the Account/Profile service for authentication (HTTPS).
+- `Notification Provider`: used by the Match service (question ready notification) and the Social service (friend invite notification) via HTTPS / Events.
 
 ### Service interaction flows
 
@@ -101,11 +101,11 @@ The system is divided into four subsystems:
 
 ### Why these decisions?
 
-- **One service per Bounded Context** — each service is focused on one domain concern, directly mapped from the Event Storming.
-- **React SPA** — avoids full page reloads, suitable for the real-time flow of match rounds.
-- **Hono / Bun** — lightweight and TypeScript-native, keeping one language across frontend and backend.
-- **Database + Cache via interfaces** — storage technology (PostgreSQL/SQLite, Redis/Valkey) can change without affecting service code.
-- **External Identity and Notification providers** — authentication and push notifications are delegated to external systems, keeping those concerns out of the game services.
+- **One service per Bounded Context**: each service is focused on one domain concern, directly mapped from the Event Storming.
+- **React SPA**: avoids full page reloads, suitable for the real-time flow of match rounds.
+- **Hono / Bun**: lightweight and TypeScript-native, keeping one language across frontend and backend.
+- **Database + Cache via interfaces**: storage technology (PostgreSQL/SQLite, Redis/Valkey) can change without affecting service code.
+- **External Identity and Notification providers**: authentication and push notifications are delegated to external systems, keeping those concerns out of the game services.
 
 ---
 
