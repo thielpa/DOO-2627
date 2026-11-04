@@ -1,0 +1,6 @@
+/* Layer order: PrimeReact theme sits below Tailwind utilities, so utilities can override components. */
+@layer theme, base, primereact, components, utilities;
+
+@import "primereact/resources/themes/lara-light-indigo/theme.css" layer(primereact);
+@import "primeicons/primeicons.css";
+@import "tailwindcss";
