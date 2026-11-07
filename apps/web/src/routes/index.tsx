@@ -12,6 +12,7 @@ function HomePage() {
     queryKey: ["health"],
     queryFn: async () => {
       const res = await api.api.health.$get();
+      if (!res.ok) throw new Error(`Health check failed: ${res.status}`);
       return res.json();
     },
   });

@@ -5,7 +5,6 @@ Learning a language is easier and more fun with friends. This app lets you pract
 ## How it works
 
 Pick the language you want to practice and how hard you want the questions to be. Then choose how you want to play:
-
 - **Solo:** You are matched with a random player at a similar level.
 - **Against a friend:** You challenge someone you know.
 - **In teams:** You team up with friends and play against another team.

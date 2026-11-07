@@ -15,7 +15,7 @@ export function createApp({ orm }: AppDependencies = {}) {
     app.use((_c, next) => RequestContext.create(orm.em, next));
   }
 
-  return app.route("/api/health", healthRoutes);
+  return app.route("/api/health", healthRoutes(orm));
 }
 
 export type AppType = ReturnType<typeof createApp>;
