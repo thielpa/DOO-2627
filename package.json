@@ -1,0 +1,22 @@
+{
+  "name": "languageduel",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run --parallel --filter '@languageduel/api' --filter '@languageduel/web' dev",
+    "build": "bun run --filter '*' build",
+    "test": "bun run --filter '*' test",
+    "typecheck": "bun run --filter '*' typecheck",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "db:up": "docker compose up -d --wait"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.2",
+    "typescript": "^7.0.2"
+  }
+}

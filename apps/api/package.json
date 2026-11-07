@@ -1,0 +1,34 @@
+{
+  "name": "@languageduel/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/http/app.ts"
+  },
+  "scripts": {
+    "dev": "bun --watch src/main.ts",
+    "start": "bun src/main.ts",
+    "build": "bun build src/main.ts --target bun --outdir dist --packages external",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "orm": "bun --env-file=.env --bun mikro-orm"
+  },
+  "dependencies": {
+    "@languageduel/domain": "workspace:*",
+    "@mikro-orm/core": "^7.2.5",
+    "@mikro-orm/migrations": "^7.2.5",
+    "@mikro-orm/postgresql": "^7.2.5",
+    "hono": "^4.13.13"
+  },
+  "devDependencies": {
+    "@mikro-orm/cli": "^7.2.5",
+    "@types/bun": "^1.4.4",
+    "typescript": "^7.0.2"
+  },
+  "mikro-orm": {
+    "configPaths": [
+      "./src/infrastructure/persistence/mikro-orm.config.ts"
+    ]
+  }
+}

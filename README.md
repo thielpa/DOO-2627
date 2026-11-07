@@ -5,7 +5,6 @@ Learning a language is easier and more fun with friends. This app lets you pract
 ## How it works
 
 Pick the language you want to practice and how hard you want the questions to be. Then choose how you want to play:
-
 - **Solo:** You are matched with a random player at a similar level.
 - **Against a friend:** You challenge someone you know.
 - **In teams:** You team up with friends and play against another team.
@@ -29,3 +28,26 @@ You can send friend requests, challenge friends to a game, invite them to your t
 ## Who is it for?
 
 Anyone learning a language who wants short, playful practice sessions instead of boring drills, whether alone, with friends, or with classmates.
+
+## Development
+
+Requirements: [Bun](https://bun.sh) and Docker.
+
+```sh
+bun install
+cp apps/api/.env.example apps/api/.env
+bun run db:up          # start Postgres
+bun run dev            # API on http://localhost:3000, web on http://localhost:5173
+```
+
+| Command             | Description                   |
+| ------------------- | ----------------------------- |
+| `bun run build`     | Build all packages            |
+| `bun run test`      | Run all tests                 |
+| `bun run typecheck` | Type-check all packages       |
+| `bun run lint`      | Lint and format check (Biome) |
+| `bun run format`    | Apply Biome fixes             |
+
+Database migrations: `bun run --filter @languageduel/api orm migration:create` / `migration:up`.
+
+See [docs/architecture.md](docs/architecture.md) for the project structure.
