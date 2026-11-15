@@ -8,8 +8,16 @@ export default defineConfig({
   plugins: [tanstackRouter({ target: "react", autoCodeSplitting: true }), react(), tailwindcss()],
   server: {
     proxy: {
-      "/api": "http://localhost:3000",
-      "/auth": "http://localhost:3000",
+      "/api": {
+        target: "http://localhost:3000",
+        changeOrigin: true,
+        headers: { Origin: "http://localhost:3000" },
+      },
+      "/auth": {
+        target: "http://localhost:3000",
+        changeOrigin: true,
+        headers: { Origin: "http://localhost:3000" },
+      },
     },
   },
   test: {
