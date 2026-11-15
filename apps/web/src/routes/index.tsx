@@ -4,6 +4,7 @@ import { Button } from "primereact/button";
 import { Message } from "primereact/message";
 import { Tag } from "primereact/tag";
 import { MatchStatusTag } from "../components/match/match-status-tag";
+import { FriendChallengePanel } from "../components/friend-challenges/friend-challenge-panel";
 import { api, unwrap } from "../lib/api";
 
 export const Route = createFileRoute("/")({
@@ -55,6 +56,8 @@ function HomePage() {
         className="self-start"
       />
       {search.isError && <Message severity="error" text={search.error.message} />}
+
+      <FriendChallengePanel />
 
       <div className="flex flex-col gap-2">
         <h2 className="text-xl font-semibold">My matches</h2>

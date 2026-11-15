@@ -26,6 +26,9 @@ function stubApi(routes: Record<string, Handler>) {
       return Response.json({ id: "player-1", username: "alice" });
     }
     if ((init?.method ?? "GET") === "GET" && path === "/api/matches") return Response.json([]);
+    if ((init?.method ?? "GET") === "GET" && path === "/api/friend-challenges") {
+      return Response.json({ incoming: [], outgoing: [] });
+    }
     return new Response(null, { status: 404 });
   });
   vi.stubGlobal("fetch", fetch);
@@ -180,6 +183,112 @@ it("shows retry on session-check server errors without clearing cached identity"
   expect(localStorage.getItem("languageduel.player")).toContain("alice");
   expect(screen.queryByText("alice")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+});
+
+const incomingChallenge = {
+  id: "challenge-1",
+  challengerPlayerId: "player-2",
+  challengerUsername: "bob",
+  challengedPlayerId: "player-1",
+  challengedUsername: "alice",
+  status: "PENDING" as const,
+  createdAt: "2026-11-15T12:00:00.000Z",
+  respondedAt: null,
+};
+
+it("shows incoming and outgoing challenge usernames and statuses", async () => {
+  const outgoingChallenge = {
+    ...incomingChallenge,
+    id: "challenge-2",
+    challengerPlayerId: "player-1",
+    challengerUsername: "alice",
+    challengedPlayerId: "player-3",
+    challengedUsername: "carol",
+    status: "DECLINED" as const,
+  };
+  stubApi({
+    "GET /api/friend-challenges": () => ({ incoming: [incomingChallenge], outgoing: [outgoingChallenge] }),
+  });
+  renderAt("/");
+
+  expect(await screen.findByText(/bob challenged alice/)).toBeInTheDocument();
+  expect(screen.getByText(/alice challenged carol/)).toBeInTheDocument();
+  expect(screen.getByText("PENDING")).toBeInTheDocument();
+  expect(screen.getByText("DECLINED")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Accept" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Decline" })).toBeInTheDocument();
+});
+
+it("invites by the exact username and refreshes the lists", async () => {
+  let outgoing: typeof incomingChallenge[] = [];
+  const fetch = stubApi({
+    "GET /api/friend-challenges": () => ({ incoming: [], outgoing }),
+    "POST /api/friend-challenges": (init) => {
+      expect(JSON.parse(String(init?.body))).toEqual({ username: "CaseSensitive" });
+      outgoing = [{
+        ...incomingChallenge,
+        challengerPlayerId: "player-1",
+        challengerUsername: "alice",
+        challengedPlayerId: "player-2",
+        challengedUsername: "CaseSensitive",
+      }];
+      return outgoing[0];
+    },
+  });
+  renderAt("/");
+
+  fireEvent.change(screen.getByLabelText("Invite by username"), { target: { value: "CaseSensitive" } });
+  fireEvent.click(screen.getByRole("button", { name: "Send invitation" }));
+
+  expect(await screen.findByText("Invitation sent.")).toBeInTheDocument();
+  expect(await screen.findByText(/alice challenged CaseSensitive/)).toBeInTheDocument();
+  expect(fetch).toHaveBeenCalledWith(
+    expect.stringContaining("/api/friend-challenges"),
+    expect.objectContaining({ method: "POST", credentials: "include" }),
+  );
+});
+
+it("accepts an incoming challenge and navigates to the returned match", async () => {
+  const fetch = stubApi({
+    "GET /api/friend-challenges": () => ({ incoming: [incomingChallenge], outgoing: [] }),
+    "POST /api/friend-challenges/challenge-1/accept": () => ({
+      challenge: { ...incomingChallenge, status: "ACCEPTED" },
+      matchId: "match-from-challenge",
+    }),
+    "GET /api/matches/match-from-challenge": () => ({
+      ...summary,
+      id: "match-from-challenge",
+      rounds,
+      current: null,
+    }),
+  });
+  renderAt("/");
+
+  fireEvent.click(await screen.findByRole("button", { name: "Accept" }));
+
+  await vi.waitFor(() =>
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/matches/match-from-challenge"),
+      expect.objectContaining({ credentials: "include" }),
+    ),
+  );
+});
+
+it("declines an incoming challenge and refreshes the invitation lists", async () => {
+  let incoming = [incomingChallenge];
+  stubApi({
+    "GET /api/friend-challenges": () => ({ incoming, outgoing: [] }),
+    "POST /api/friend-challenges/challenge-1/decline": () => {
+      incoming = [];
+      return { ...incomingChallenge, status: "DECLINED" };
+    },
+  });
+  renderAt("/");
+
+  fireEvent.click(await screen.findByRole("button", { name: "Decline" }));
+
+  expect(await screen.findByText("Invitation declined.")).toBeInTheDocument();
+  expect(await screen.findByText("No incoming invitations.")).toBeInTheDocument();
 });
 
 it("lets the chooser pick a category", async () => {
