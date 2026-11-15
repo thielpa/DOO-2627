@@ -6,6 +6,7 @@ import type {
   QuestionRepository,
 } from "../domain";
 import { AnswerQuestion } from "./answer-question";
+import { AuthenticatePlayer } from "./authenticate-player";
 import { ChooseCategory } from "./choose-category";
 import { GetLobby } from "./get-lobby";
 import { GetMatchView } from "./get-match-view";
@@ -14,8 +15,11 @@ import { ListMyMatches } from "./list-my-matches";
 import { SearchRandomOpponent } from "./search-random-opponent";
 import { ShowQuestion } from "./show-question";
 import type { Transaction } from "./transaction";
+import type { PasswordHasher } from "./password-hasher";
 
 export type { AnswerResult } from "./answer-question";
+export { AuthenticationError } from "./authenticate-player";
+export type { AuthenticatedPlayer, AuthenticatePlayerInput } from "./authenticate-player";
 export type { LobbyView } from "./get-lobby";
 export type { CurrentRoundView, MatchView, RoundView } from "./get-match-view";
 export type { CategoryView } from "./list-categories";
@@ -23,6 +27,7 @@ export type { MatchResult, MatchSummary } from "./match-summary";
 export type { SearchResult } from "./search-random-opponent";
 export type { QuestionView } from "./show-question";
 export type { Transaction } from "./transaction";
+export type { PasswordHasher } from "./password-hasher";
 
 export interface Repositories {
   categories: CategoryRepository;
@@ -34,10 +39,12 @@ export interface Repositories {
 }
 
 export function createUseCases(
-  { categories, questions, lobbies, matches, transaction }: Repositories,
+  { categories, questions, lobbies, matches, players, transaction }: Repositories,
+  passwordHasher: PasswordHasher,
   now: () => Date = () => new Date(),
 ) {
   return {
+    authenticatePlayer: new AuthenticatePlayer(players, passwordHasher),
     searchRandomOpponent: new SearchRandomOpponent(lobbies, matches, transaction, now),
     getLobby: new GetLobby(lobbies),
     listCategories: new ListCategories(categories),

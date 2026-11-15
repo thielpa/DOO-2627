@@ -1,4 +1,5 @@
 import { createUseCases, type Repositories } from "../../src/application";
+import type { PasswordHasher } from "../../src/application/password-hasher";
 import type {
   Category,
   CategoryRepository,
@@ -119,5 +120,9 @@ export function inMemoryUseCases(
     players: new InMemoryPlayerRepository(),
     transaction: { run: (work) => work() },
   };
-  return createUseCases(repositories, now);
+  const passwordHasher: PasswordHasher = {
+    hash: async (plaintext) => `test-hash:${plaintext}`,
+    verify: async (plaintext, hash) => hash === `test-hash:${plaintext}`,
+  };
+  return createUseCases(repositories, passwordHasher, now);
 }
