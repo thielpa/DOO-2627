@@ -15,6 +15,7 @@ const bob = "00000000-0000-4000-8000-00000000000b";
 const carol = "00000000-0000-4000-8000-00000000000c";
 
 let app: ReturnType<typeof createApp>;
+const sessionCookies = new Map<string, string>();
 // Fake clock, so tests can let time pass.
 let now: Date;
 const advance = (ms: number) => {
@@ -23,12 +24,30 @@ const advance = (ms: number) => {
 
 beforeEach(() => {
   now = new Date("2026-01-01T00:00:00Z");
+  sessionCookies.clear();
   app = createApp({ useCases: inMemoryUseCases(categories, questions, () => now) });
 });
 
-function call(player: string | null, method: string, path: string, body?: unknown) {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (player) headers["X-Player-Id"] = player;
+async function call(player: string | null, method: string, path: string, body?: unknown) {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Origin: "http://localhost",
+  };
+  if (player) {
+    let cookie = sessionCookies.get(player);
+    if (!cookie) {
+      const login = await app.request("/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "http://localhost" },
+        body: JSON.stringify({ username: player, password: "test-password" }),
+      });
+      if (!login.ok) throw new Error(`test login failed: ${login.status}`);
+      cookie = login.headers.get("set-cookie")?.split(";")[0];
+      if (!cookie) throw new Error("test login did not set a session cookie");
+      sessionCookies.set(player, cookie);
+    }
+    headers.Cookie = cookie;
+  }
   return app.request(path, {
     method,
     headers,

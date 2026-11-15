@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { validator } from "hono/validator";
 import type { UseCases } from "../../application";
-import { playerIdOf } from "../player-id";
+import { playerIdOf, type SessionAuthEnv } from "../player-id";
+import { requireSession } from "../session-auth";
 
 const badRequest = (message: string) => new HTTPException(400, { message });
 
@@ -22,7 +23,8 @@ const answerBody = validator("json", (body: { questionId?: unknown; optionId?: u
 });
 
 export const matchRoutes = (useCases: UseCases) =>
-  new Hono()
+  new Hono<SessionAuthEnv>()
+    .use("*", requireSession(useCases))
     .get("/", async (c) => c.json(await useCases.listMyMatches.execute(playerIdOf(c))))
     .get("/:id", async (c) =>
       c.json(await useCases.getMatchView.execute(c.req.param("id"), playerIdOf(c))),
