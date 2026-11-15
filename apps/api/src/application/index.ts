@@ -2,6 +2,7 @@ import type {
   CategoryRepository,
   LobbyRepository,
   MatchRepository,
+  PlayerRepository,
   QuestionRepository,
 } from "../domain";
 import { AnswerQuestion } from "./answer-question";
@@ -28,6 +29,7 @@ export interface Repositories {
   questions: QuestionRepository;
   lobbies: LobbyRepository;
   matches: MatchRepository;
+  players: PlayerRepository;
   transaction: Transaction;
 }
 

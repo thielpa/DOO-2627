@@ -4,6 +4,7 @@ import { MikroOrmTransaction } from "../mikro-orm-transaction";
 import { MikroOrmCategoryRepository } from "./mikro-orm-category.repository";
 import { MikroOrmLobbyRepository } from "./mikro-orm-lobby.repository";
 import { MikroOrmMatchRepository } from "./mikro-orm-match.repository";
+import { MikroOrmPlayerRepository } from "./mikro-orm-player.repository";
 import { MikroOrmQuestionRepository } from "./mikro-orm-question.repository";
 
 export function mikroOrmRepositories(em: EntityManager): Repositories {
@@ -12,6 +13,7 @@ export function mikroOrmRepositories(em: EntityManager): Repositories {
     questions: new MikroOrmQuestionRepository(em),
     lobbies: new MikroOrmLobbyRepository(em),
     matches: new MikroOrmMatchRepository(em),
+    players: new MikroOrmPlayerRepository(em),
     transaction: new MikroOrmTransaction(em),
   };
 }

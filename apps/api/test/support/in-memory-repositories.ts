@@ -8,6 +8,8 @@ import type {
   LobbyRepository,
   Match,
   MatchRepository,
+  Player,
+  PlayerRepository,
   Question,
   QuestionRepository,
 } from "../../src/domain";
@@ -88,6 +90,22 @@ export class InMemoryMatchRepository implements MatchRepository {
   }
 }
 
+export class InMemoryPlayerRepository implements PlayerRepository {
+  private readonly players = new Map<string, Player>();
+
+  async byId(id: string) {
+    return this.players.get(id) ?? null;
+  }
+
+  async byUsername(username: string) {
+    return [...this.players.values()].find((player) => player.username === username) ?? null;
+  }
+
+  async save(player: Player) {
+    this.players.set(player.id, player);
+  }
+}
+
 export function inMemoryUseCases(
   categories: Category[] = [],
   questions: Question[] = [],
@@ -98,6 +116,7 @@ export function inMemoryUseCases(
     questions: new InMemoryQuestionRepository(questions),
     lobbies: new InMemoryLobbyRepository(),
     matches: new InMemoryMatchRepository(),
+    players: new InMemoryPlayerRepository(),
     transaction: { run: (work) => work() },
   };
   return createUseCases(repositories, now);
