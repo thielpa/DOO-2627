@@ -5,6 +5,7 @@ export * from "./catalog/category";
 export * from "./catalog/difficulty";
 export * from "./catalog/question";
 export * from "./catalog/repositories";
+export * from "./account/player";
 export * from "./match/match";
 export * from "./match/player-answer";
 export * from "./match/repositories";
