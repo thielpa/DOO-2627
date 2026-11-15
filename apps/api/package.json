@@ -12,10 +12,10 @@
     "build": "bun build src/main.ts --target bun --outdir dist --packages external",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "orm": "bun --env-file=.env --bun mikro-orm"
+    "orm": "bun --env-file=.env --bun mikro-orm",
+    "seed": "bun --env-file=.env src/infrastructure/persistence/seed.ts"
   },
   "dependencies": {
-    "@languageduel/domain": "workspace:*",
     "@mikro-orm/core": "^7.2.5",
     "@mikro-orm/migrations": "^7.2.5",
     "@mikro-orm/postgresql": "^7.2.5",

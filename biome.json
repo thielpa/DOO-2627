@@ -37,5 +37,62 @@
         "organizeImports": "on"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["apps/api/src/domain/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@mikro-orm/*", "hono", "hono/*", "react", "react/*"],
+                    "message": "The domain must not depend on frameworks or outer layers (see docs/architecture.md)."
+                  },
+                  {
+                    "group": [
+                      "**/application",
+                      "**/infrastructure",
+                      "**/http",
+                      "**/application/**",
+                      "**/infrastructure/**",
+                      "**/http/**"
+                    ],
+                    "message": "The domain must not depend on frameworks or outer layers (see docs/architecture.md)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/api/src/application/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@mikro-orm/*", "hono", "hono/*", "react", "react/*"],
+                    "message": "The application layer must not depend on frameworks or outer layers (see docs/architecture.md)."
+                  },
+                  {
+                    "group": ["**/infrastructure", "**/http", "**/infrastructure/**", "**/http/**"],
+                    "message": "The application layer must not depend on frameworks or outer layers (see docs/architecture.md)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

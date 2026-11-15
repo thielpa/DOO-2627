@@ -10,33 +10,53 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as LobbyLobbyIdRouteImport } from './routes/lobby.$lobbyId'
+import { Route as MatchesMatchIdRouteImport } from './routes/matches.$matchId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LobbyLobbyIdRoute = LobbyLobbyIdRouteImport.update({
+  id: '/lobby/$lobbyId',
+  path: '/lobby/$lobbyId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MatchesMatchIdRoute = MatchesMatchIdRouteImport.update({
+  id: '/matches/$matchId',
+  path: '/matches/$matchId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/lobby/$lobbyId': typeof LobbyLobbyIdRoute
+  '/matches/$matchId': typeof MatchesMatchIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/lobby/$lobbyId': typeof LobbyLobbyIdRoute
+  '/matches/$matchId': typeof MatchesMatchIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/lobby/$lobbyId': typeof LobbyLobbyIdRoute
+  '/matches/$matchId': typeof MatchesMatchIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/lobby/$lobbyId' | '/matches/$matchId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/lobby/$lobbyId' | '/matches/$matchId'
+  id: '__root__' | '/' | '/lobby/$lobbyId' | '/matches/$matchId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  LobbyLobbyIdRoute: typeof LobbyLobbyIdRoute
+  MatchesMatchIdRoute: typeof MatchesMatchIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +68,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/lobby/$lobbyId': {
+      id: '/lobby/$lobbyId'
+      path: '/lobby/$lobbyId'
+      fullPath: '/lobby/$lobbyId'
+      preLoaderRoute: typeof LobbyLobbyIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/matches/$matchId': {
+      id: '/matches/$matchId'
+      path: '/matches/$matchId'
+      fullPath: '/matches/$matchId'
+      preLoaderRoute: typeof MatchesMatchIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  LobbyLobbyIdRoute: LobbyLobbyIdRoute,
+  MatchesMatchIdRoute: MatchesMatchIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

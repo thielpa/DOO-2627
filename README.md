@@ -37,6 +37,8 @@ Requirements: [Bun](https://bun.sh) and Docker.
 bun install
 cp apps/api/.env.example apps/api/.env
 bun run db:up          # start Postgres
+bun run --filter @languageduel/api orm migration:up   # create tables
+bun run --filter @languageduel/api seed               # add categories and questions
 bun run dev            # API on http://localhost:3000, web on http://localhost:5173
 ```
 
@@ -49,5 +51,8 @@ bun run dev            # API on http://localhost:3000, web on http://localhost:5
 | `bun run format`    | Apply Biome fixes             |
 
 Database migrations: `bun run --filter @languageduel/api orm migration:create` / `migration:up`.
+
+To try a match locally, open the web app in a normal and a private browser window: each window
+plays as its own player.
 
 See [docs/architecture.md](docs/architecture.md) for the project structure.
