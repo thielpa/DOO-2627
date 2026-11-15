@@ -4,6 +4,8 @@ import { HTTPException } from "hono/http-exception";
 import { validator } from "hono/validator";
 import type { UseCases } from "../../application";
 import { SESSION_COOKIE_NAME, sessionCookieOptions } from "../session-cookie";
+import { playerIdOf } from "../player-id";
+import { requireSession } from "../session-auth";
 
 const loginBody = validator("json", (body: { username?: unknown; password?: unknown }) => {
   if (
@@ -19,6 +21,11 @@ const loginBody = validator("json", (body: { username?: unknown; password?: unkn
 
 export const authRoutes = (useCases: UseCases) =>
   new Hono()
+    .get("/me", requireSession(useCases), async (c) => {
+      const player = await useCases.getPlayerIdentity.execute(playerIdOf(c));
+      if (!player) throw new HTTPException(401, { message: "Authentication required" });
+      return c.json({ id: player.id, username: player.username });
+    })
     .post("/login", loginBody, async (c) => {
       const credentials = c.req.valid("json");
       const player = await useCases.authenticatePlayer.execute(credentials);

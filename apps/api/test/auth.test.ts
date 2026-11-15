@@ -64,6 +64,31 @@ describe("HTTP authentication", () => {
     expect(await response.json()).toEqual({ error: "Invalid username or password" });
   });
 
+  it("returns the public Player identity from a valid session cookie", async () => {
+    const authenticated = await login("alice", "secret");
+    const response = await app.request("/auth/me", {
+      headers: { Cookie: cookiePair(authenticated) },
+    });
+    const body = (await response.json()) as Record<string, unknown>;
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({ id: expect.any(String), username: "alice" });
+    expect(Object.keys(body).sort()).toEqual(["id", "username"]);
+  });
+
+  it("rejects missing, invalid, and expired sessions at /auth/me", async () => {
+    expect((await app.request("/auth/me")).status).toBe(401);
+    expect(
+      (await app.request("/auth/me", { headers: { Cookie: `${SESSION_COOKIE_NAME}=invalid` } })).status,
+    ).toBe(401);
+
+    const authenticated = await login("alice", "secret");
+    now = new Date(now.getTime() + SESSION_LIFETIME_MS);
+    expect(
+      (await app.request("/auth/me", { headers: { Cookie: cookiePair(authenticated) } })).status,
+    ).toBe(401);
+  });
+
   it("validates login request bodies", async () => {
     const empty = await login("", "secret");
     const malformed = await app.request("/auth/login", {

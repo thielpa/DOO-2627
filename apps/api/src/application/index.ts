@@ -16,6 +16,7 @@ import { InviteFriend } from "./invite-friend";
 import { ChooseCategory } from "./choose-category";
 import { GetLobby } from "./get-lobby";
 import { GetMatchView } from "./get-match-view";
+import { GetPlayerIdentity } from "./get-player-identity";
 import { ListCategories } from "./list-categories";
 import { ListFriendChallenges } from "./list-friend-challenges";
 import { ListMyMatches } from "./list-my-matches";
@@ -71,6 +72,7 @@ export function createUseCases(
 ) {
   return {
     authenticatePlayer: new AuthenticatePlayer(players, passwordHasher),
+    getPlayerIdentity: new GetPlayerIdentity(players),
     createSession: new CreateSession(sessions, now),
     validateSession: new ValidateSession(sessions, now),
     invalidateSession: new InvalidateSession(sessions, now),
