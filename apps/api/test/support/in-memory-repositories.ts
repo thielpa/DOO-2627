@@ -13,6 +13,8 @@ import type {
   PlayerRepository,
   Question,
   QuestionRepository,
+  Session,
+  SessionRepository,
 } from "../../src/domain";
 
 export class InMemoryCategoryRepository implements CategoryRepository {
@@ -107,6 +109,18 @@ export class InMemoryPlayerRepository implements PlayerRepository {
   }
 }
 
+export class InMemorySessionRepository implements SessionRepository {
+  private readonly sessions = new Map<string, Session>();
+
+  async byTokenDigest(tokenDigest: string) {
+    return this.sessions.get(tokenDigest) ?? null;
+  }
+
+  async save(session: Session) {
+    this.sessions.set(session.tokenDigest, session);
+  }
+}
+
 export function inMemoryUseCases(
   categories: Category[] = [],
   questions: Question[] = [],
@@ -118,6 +132,7 @@ export function inMemoryUseCases(
     lobbies: new InMemoryLobbyRepository(),
     matches: new InMemoryMatchRepository(),
     players: new InMemoryPlayerRepository(),
+    sessions: new InMemorySessionRepository(),
     transaction: { run: (work) => work() },
   };
   const passwordHasher: PasswordHasher = {

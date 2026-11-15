@@ -3,6 +3,7 @@ import { CategorySchema } from "./category.schema";
 import { LobbySchema } from "./lobby.schema";
 import { MatchSchema, PlayerAnswerSchema, RoundSchema } from "./match.schema";
 import { PlayerSchema } from "./player.schema";
+import { SessionSchema } from "./session.schema";
 import { AnswerOptionSchema, QuestionSchema } from "./question.schema";
 
 // Register an EntitySchema here for every domain class that gets persisted.
@@ -13,6 +14,7 @@ export const schemas: EntitySchema[] = [
   QuestionSchema,
   LobbySchema,
   PlayerSchema,
+  SessionSchema,
   PlayerAnswerSchema,
   RoundSchema,
   MatchSchema,
