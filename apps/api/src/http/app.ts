@@ -10,6 +10,7 @@ import { healthRoutes } from "./routes/health";
 import { matchRoutes } from "./routes/matches";
 import { matchmakingRoutes } from "./routes/matchmaking";
 import { authRoutes } from "./routes/auth";
+import { friendChallengeRoutes } from "./routes/friend-challenges";
 import type { SessionAuthEnv } from "./player-id";
 import { requireSameOriginForUnsafeMethods } from "./same-origin-unsafe";
 
@@ -54,7 +55,8 @@ export function createApp({ useCases, aroundRequest, orm }: AppDependencies) {
     .route("/api/health", healthRoutes(orm))
     .route("/api/matchmaking", matchmakingRoutes(useCases))
     .route("/api/categories", categoryRoutes(useCases))
-    .route("/api/matches", matchRoutes(useCases));
+    .route("/api/matches", matchRoutes(useCases))
+    .route("/api/friend-challenges", friendChallengeRoutes(useCases));
 }
 
 export type AppType = ReturnType<typeof createApp>;

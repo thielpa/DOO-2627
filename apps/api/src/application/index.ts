@@ -1,5 +1,6 @@
 import type {
   CategoryRepository,
+  FriendChallengeRepository,
   LobbyRepository,
   MatchRepository,
   PlayerRepository,
@@ -8,11 +9,15 @@ import type {
 } from "../domain";
 import { AnswerQuestion } from "./answer-question";
 import { AuthenticatePlayer } from "./authenticate-player";
+import { AcceptFriendChallenge } from "./accept-friend-challenge";
 import { CreateSession } from "./create-session";
+import { DeclineFriendChallenge } from "./decline-friend-challenge";
+import { InviteFriend } from "./invite-friend";
 import { ChooseCategory } from "./choose-category";
 import { GetLobby } from "./get-lobby";
 import { GetMatchView } from "./get-match-view";
 import { ListCategories } from "./list-categories";
+import { ListFriendChallenges } from "./list-friend-challenges";
 import { ListMyMatches } from "./list-my-matches";
 import { InvalidateSession } from "./invalidate-session";
 import { SearchRandomOpponent } from "./search-random-opponent";
@@ -35,6 +40,9 @@ export type { PasswordHasher } from "./password-hasher";
 export { SESSION_LIFETIME_MS } from "./create-session";
 export type { CreatedSession } from "./create-session";
 export type { ValidatedSession } from "./validate-session";
+export type { AcceptedFriendChallenge } from "./accept-friend-challenge";
+export type { FriendChallengeView } from "./friend-challenge-view";
+export type { FriendChallengeLists } from "./list-friend-challenges";
 
 export interface Repositories {
   categories: CategoryRepository;
@@ -42,12 +50,22 @@ export interface Repositories {
   lobbies: LobbyRepository;
   matches: MatchRepository;
   players: PlayerRepository;
+  friendChallenges: FriendChallengeRepository;
   sessions: SessionRepository;
   transaction: Transaction;
 }
 
 export function createUseCases(
-  { categories, questions, lobbies, matches, players, sessions, transaction }: Repositories,
+  {
+    categories,
+    questions,
+    lobbies,
+    matches,
+    players,
+    sessions,
+    friendChallenges,
+    transaction,
+  }: Repositories,
   passwordHasher: PasswordHasher,
   now: () => Date = () => new Date(),
 ) {
@@ -56,6 +74,16 @@ export function createUseCases(
     createSession: new CreateSession(sessions, now),
     validateSession: new ValidateSession(sessions, now),
     invalidateSession: new InvalidateSession(sessions, now),
+    inviteFriend: new InviteFriend(players, friendChallenges, transaction, now),
+    listFriendChallenges: new ListFriendChallenges(friendChallenges, players),
+    acceptFriendChallenge: new AcceptFriendChallenge(
+      friendChallenges,
+      players,
+      matches,
+      transaction,
+      now,
+    ),
+    declineFriendChallenge: new DeclineFriendChallenge(friendChallenges, players, transaction, now),
     searchRandomOpponent: new SearchRandomOpponent(lobbies, matches, transaction, now),
     getLobby: new GetLobby(lobbies),
     listCategories: new ListCategories(categories),

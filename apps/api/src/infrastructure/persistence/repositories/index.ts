@@ -7,6 +7,7 @@ import { MikroOrmMatchRepository } from "./mikro-orm-match.repository";
 import { MikroOrmPlayerRepository } from "./mikro-orm-player.repository";
 import { MikroOrmQuestionRepository } from "./mikro-orm-question.repository";
 import { MikroOrmSessionRepository } from "./mikro-orm-session.repository";
+import { MikroOrmFriendChallengeRepository } from "./mikro-orm-friend-challenge.repository";
 
 export function mikroOrmRepositories(em: EntityManager): Repositories {
   return {
@@ -16,6 +17,7 @@ export function mikroOrmRepositories(em: EntityManager): Repositories {
     matches: new MikroOrmMatchRepository(em),
     players: new MikroOrmPlayerRepository(em),
     sessions: new MikroOrmSessionRepository(em),
+    friendChallenges: new MikroOrmFriendChallengeRepository(em),
     transaction: new MikroOrmTransaction(em),
   };
 }

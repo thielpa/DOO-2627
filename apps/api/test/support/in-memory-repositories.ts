@@ -4,6 +4,8 @@ import type {
   Category,
   CategoryRepository,
   Difficulty,
+  FriendChallenge,
+  FriendChallengeRepository,
   GameMode,
   Lobby,
   LobbyRepository,
@@ -121,6 +123,45 @@ export class InMemorySessionRepository implements SessionRepository {
   }
 }
 
+export class InMemoryFriendChallengeRepository implements FriendChallengeRepository {
+  private readonly challenges = new Map<string, FriendChallenge>();
+
+  async byId(id: string) {
+    return this.challenges.get(id) ?? null;
+  }
+
+  async byIdForUpdate(id: string) {
+    return this.byId(id);
+  }
+
+  async pendingBetween(challengerPlayerId: string, challengedPlayerId: string) {
+    return (
+      [...this.challenges.values()].find(
+        (challenge) =>
+          challenge.challengerPlayerId === challengerPlayerId &&
+          challenge.challengedPlayerId === challengedPlayerId &&
+          challenge.status === "PENDING",
+      ) ?? null
+    );
+  }
+
+  async pendingForChallenged(playerId: string) {
+    return [...this.challenges.values()]
+      .filter((challenge) => challenge.challengedPlayerId === playerId && challenge.status === "PENDING")
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  }
+
+  async forChallenger(playerId: string) {
+    return [...this.challenges.values()]
+      .filter((challenge) => challenge.challengerPlayerId === playerId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async save(challenge: FriendChallenge) {
+    this.challenges.set(challenge.id, challenge);
+  }
+}
+
 export function inMemoryUseCases(
   categories: Category[] = [],
   questions: Question[] = [],
@@ -133,6 +174,7 @@ export function inMemoryUseCases(
     matches: new InMemoryMatchRepository(),
     players: new InMemoryPlayerRepository(),
     sessions: new InMemorySessionRepository(),
+    friendChallenges: new InMemoryFriendChallengeRepository(),
     transaction: { run: (work) => work() },
   };
   const passwordHasher: PasswordHasher = {
