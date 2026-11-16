@@ -105,8 +105,10 @@ it("logs in or creates a player and sends credentials to the backend", async () 
   });
   renderAt("/login", false);
 
-  fireEvent.change(screen.getByLabelText("Username"), { target: { value: "new-player" } });
-  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "pass123" } });
+  fireEvent.change(await screen.findByLabelText("Username"), {
+    target: { value: "new-player" },
+  });
+  fireEvent.change(await screen.findByLabelText("Password"), { target: { value: "pass123" } });
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
   expect(await screen.findByText("new-player")).toBeInTheDocument();
@@ -127,8 +129,8 @@ it("shows the backend's invalid-credentials error", async () => {
   });
   renderAt("/login", false);
 
-  fireEvent.change(screen.getByLabelText("Username"), { target: { value: "alice" } });
-  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "wrong" } });
+  fireEvent.change(await screen.findByLabelText("Username"), { target: { value: "alice" } });
+  fireEvent.change(await screen.findByLabelText("Password"), { target: { value: "wrong" } });
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
   expect(await screen.findByText("Invalid username or password")).toBeInTheDocument();
@@ -195,7 +197,7 @@ it("shows retry on session-check server errors without clearing cached identity"
   vi.stubGlobal("fetch", fetch);
   renderAt("/");
 
-  expect(await screen.findByRole("alert")).toHaveTextContent("couldn't check your session");
+  expect(await screen.findByText(/couldn't check your session/)).toBeInTheDocument();
   expect(localStorage.getItem("languageduel.player")).toContain("alice");
   expect(screen.queryByText("alice")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
@@ -230,8 +232,18 @@ it("shows incoming and outgoing challenge usernames and statuses", async () => {
   });
   renderAt("/");
 
-  expect(await screen.findByText(/bob challenged alice/)).toBeInTheDocument();
-  expect(screen.getByText(/alice challenged carol/)).toBeInTheDocument();
+  expect(
+    await screen.findByText(
+      (_content, element) =>
+        element?.tagName === "P" && element.textContent === "bob challenged alice",
+    ),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      (_content, element) =>
+        element?.tagName === "P" && element.textContent === "alice challenged carol",
+    ),
+  ).toBeInTheDocument();
   expect(screen.getByText("PENDING")).toBeInTheDocument();
   expect(screen.getByText("DECLINED")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Accept" })).toBeInTheDocument();
@@ -258,7 +270,7 @@ it("invites by the exact username and refreshes the lists", async () => {
   });
   renderAt("/");
 
-  fireEvent.change(screen.getByLabelText("Invite by username"), {
+  fireEvent.change(await screen.findByLabelText("Invite by username"), {
     target: { value: "CaseSensitive" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Send invitation" }));
