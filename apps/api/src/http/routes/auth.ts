@@ -1,11 +1,11 @@
-import { getCookie, setCookie } from "hono/cookie";
 import { Hono } from "hono";
+import { getCookie, setCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
 import { validator } from "hono/validator";
 import type { UseCases } from "../../application";
-import { SESSION_COOKIE_NAME, sessionCookieOptions } from "../session-cookie";
 import { playerIdOf } from "../player-id";
 import { requireSession } from "../session-auth";
+import { SESSION_COOKIE_NAME, sessionCookieOptions } from "../session-cookie";
 
 const loginBody = validator("json", (body: { username?: unknown; password?: unknown }) => {
   if (

@@ -12,7 +12,9 @@ export function requireFriendChallengeTestDatabaseUrl(url: string | undefined): 
   try {
     parsed = new URL(url);
   } catch {
-    throw new Error("FRIEND_CHALLENGE_TEST_DATABASE_URL must be a valid PostgreSQL connection URL.");
+    throw new Error(
+      "FRIEND_CHALLENGE_TEST_DATABASE_URL must be a valid PostgreSQL connection URL.",
+    );
   }
 
   if (parsed.protocol !== "postgres:" && parsed.protocol !== "postgresql:") {
@@ -29,7 +31,8 @@ export function requireFriendChallengeTestDatabaseUrl(url: string | undefined): 
   if (databaseName !== FRIEND_CHALLENGE_TEST_DATABASE_NAME) {
     throw new Error(
       "FRIEND_CHALLENGE_TEST_DATABASE_URL must target database " +
-        FRIEND_CHALLENGE_TEST_DATABASE_NAME + ".",
+        FRIEND_CHALLENGE_TEST_DATABASE_NAME +
+        ".",
     );
   }
 

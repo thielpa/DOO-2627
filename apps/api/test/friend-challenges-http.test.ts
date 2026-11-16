@@ -1,6 +1,5 @@
 import { describe, expect, it } from "bun:test";
 import { createApp } from "../src/http/app";
-import { SESSION_COOKIE_NAME } from "../src/http/session-cookie";
 import { inMemoryUseCases } from "./support/in-memory-repositories";
 
 function cookieFrom(response: Response): string {

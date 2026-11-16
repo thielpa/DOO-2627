@@ -15,7 +15,7 @@ export class ValidateSession {
 
   async execute(token: string): Promise<ValidatedSession | null> {
     const session = await this.sessions.byTokenDigest(await digestSessionToken(token));
-    if (!session || !session.isValidAt(this.now())) return null;
+    if (!session?.isValidAt(this.now())) return null;
     return { sessionId: session.id, playerId: session.playerId };
   }
 }

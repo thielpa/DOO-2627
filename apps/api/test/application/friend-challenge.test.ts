@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { DomainError, Player } from "../../src/domain";
 import { AcceptFriendChallenge } from "../../src/application/accept-friend-challenge";
 import { DeclineFriendChallenge } from "../../src/application/decline-friend-challenge";
 import { InviteFriend } from "../../src/application/invite-friend";
 import { ListFriendChallenges } from "../../src/application/list-friend-challenges";
+import { Player } from "../../src/domain";
 import {
   InMemoryFriendChallengeRepository,
   InMemoryMatchRepository,
@@ -33,7 +33,9 @@ function setup() {
     list,
     accept,
     decline,
-    setNow: (value: Date) => { now = value; },
+    setNow: (value: Date) => {
+      now = value;
+    },
   };
 }
 
@@ -64,8 +66,12 @@ describe("friend challenge use cases", () => {
     const ctx = setup();
     await seedPlayers(ctx.players);
 
-    await expect(ctx.invite.execute(challenger.id, "nobody")).rejects.toMatchObject({ code: "NOT_FOUND" });
-    await expect(ctx.invite.execute(challenger.id, "alice")).rejects.toMatchObject({ code: "CONFLICT" });
+    await expect(ctx.invite.execute(challenger.id, "nobody")).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    await expect(ctx.invite.execute(challenger.id, "alice")).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
   });
 
   it("lists incoming pending challenges and outgoing challenges", async () => {

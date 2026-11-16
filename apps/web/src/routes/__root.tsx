@@ -1,16 +1,26 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createRootRoute, Link, Outlet, redirect, useNavigate, useRouter } from "@tanstack/react-router";
+import {
+  createRootRoute,
+  Link,
+  Outlet,
+  redirect,
+  useNavigate,
+  useRouter,
+} from "@tanstack/react-router";
 import { Button } from "primereact/button";
 import { Message } from "primereact/message";
 import { logoutPlayer, restorePlayerSession } from "../lib/auth";
 
 export const Route = createRootRoute({
   beforeLoad: async ({ location }) => {
-    let player;
+    let player: Awaited<ReturnType<typeof restorePlayerSession>>;
     try {
       player = await restorePlayerSession();
     } catch {
-      return { player: null, restoreError: "We couldn't check your session. Check your connection and try again." };
+      return {
+        player: null,
+        restoreError: "We couldn't check your session. Check your connection and try again.",
+      };
     }
     if (!player && location.pathname !== "/login") {
       throw redirect({ to: "/login" });
@@ -52,7 +62,7 @@ function RootLayout() {
                 Languageduel
               </Link>
               <div className="flex items-center gap-3">
-                <span aria-label="Logged-in player">{player.username}</span>
+                <span>{player.username}</span>
                 <Button
                   label="Log out"
                   severity="secondary"

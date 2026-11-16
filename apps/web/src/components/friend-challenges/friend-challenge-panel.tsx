@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { Message } from "primereact/message";
 import { Tag } from "primereact/tag";
+import { type FormEvent, useState } from "react";
 import { api, unwrap } from "../../lib/api";
 
 type Challenge = {
@@ -26,7 +26,10 @@ function Invitation({ challenge }: { challenge: Challenge }) {
         </p>
         <p className="text-sm text-gray-500">{new Date(challenge.createdAt).toLocaleString()}</p>
       </div>
-      <Tag value={challenge.status} severity={challenge.status === "PENDING" ? "warning" : "info"} />
+      <Tag
+        value={challenge.status}
+        severity={challenge.status === "PENDING" ? "warning" : "info"}
+      />
     </div>
   );
 }
@@ -56,10 +59,7 @@ export function FriendChallengePanel() {
     mutationFn: (challengeId: string) =>
       unwrap(api.api["friend-challenges"][":id"].accept.$post({ param: { id: challengeId } })),
     onSuccess: async (result) => {
-      await Promise.all([
-        refreshLists(),
-        queryClient.invalidateQueries({ queryKey: ["matches"] }),
-      ]);
+      await Promise.all([refreshLists(), queryClient.invalidateQueries({ queryKey: ["matches"] })]);
       await navigate({ to: "/matches/$matchId", params: { matchId: result.matchId } });
     },
   });
@@ -80,7 +80,9 @@ export function FriendChallengePanel() {
 
   return (
     <section className="flex flex-col gap-5" aria-labelledby="friend-challenges-title">
-      <h2 id="friend-challenges-title" className="text-xl font-semibold">Friend challenges</h2>
+      <h2 id="friend-challenges-title" className="text-xl font-semibold">
+        Friend challenges
+      </h2>
 
       <form className="flex flex-wrap items-end gap-3" onSubmit={submitInvite}>
         <div className="flex flex-col gap-2">
@@ -93,7 +95,12 @@ export function FriendChallengePanel() {
             required
           />
         </div>
-        <Button type="submit" label="Send invitation" loading={invite.isPending} disabled={!username} />
+        <Button
+          type="submit"
+          label="Send invitation"
+          loading={invite.isPending}
+          disabled={!username}
+        />
       </form>
       {invite.isError && <Message severity="error" text={invite.error.message} />}
       {inviteSuccess && <Message severity="success" text="Invitation sent." />}
@@ -102,7 +109,9 @@ export function FriendChallengePanel() {
         <h3 className="font-semibold">Incoming invitations</h3>
         {challenges.isPending && <p>Loading invitations…</p>}
         {challenges.isError && <Message severity="error" text={challenges.error.message} />}
-        {challenges.data?.incoming.length === 0 && <p className="text-gray-500">No incoming invitations.</p>}
+        {challenges.data?.incoming.length === 0 && (
+          <p className="text-gray-500">No incoming invitations.</p>
+        )}
         <ul className="flex flex-col gap-2">
           {challenges.data?.incoming.map((challenge) => (
             <li key={challenge.id} className="flex flex-col gap-2">
@@ -135,10 +144,14 @@ export function FriendChallengePanel() {
 
       <div className="flex flex-col gap-2">
         <h3 className="font-semibold">Outgoing invitations</h3>
-        {challenges.data?.outgoing.length === 0 && <p className="text-gray-500">No outgoing invitations.</p>}
+        {challenges.data?.outgoing.length === 0 && (
+          <p className="text-gray-500">No outgoing invitations.</p>
+        )}
         <ul className="flex flex-col gap-2">
           {challenges.data?.outgoing.map((challenge) => (
-            <li key={challenge.id}><Invitation challenge={challenge} /></li>
+            <li key={challenge.id}>
+              <Invitation challenge={challenge} />
+            </li>
           ))}
         </ul>
       </div>

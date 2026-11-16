@@ -3,8 +3,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "primereact/button";
 import { Message } from "primereact/message";
 import { Tag } from "primereact/tag";
-import { MatchStatusTag } from "../components/match/match-status-tag";
 import { FriendChallengePanel } from "../components/friend-challenges/friend-challenge-panel";
+import { MatchStatusTag } from "../components/match/match-status-tag";
 import { api, unwrap } from "../lib/api";
 
 export const Route = createFileRoute("/")({

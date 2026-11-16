@@ -1,5 +1,5 @@
-import type { EntityManager } from "@mikro-orm/postgresql";
 import { LockMode, UniqueConstraintViolationException } from "@mikro-orm/core";
+import type { EntityManager } from "@mikro-orm/postgresql";
 import { DomainError, FriendChallenge, type FriendChallengeRepository } from "../../../domain";
 
 export const PENDING_FRIEND_CHALLENGE_UNIQUE_INDEX = "friend_challenge_pending_pair_unique";
@@ -37,11 +37,9 @@ export class MikroOrmFriendChallengeRepository implements FriendChallengeReposit
   }
 
   forChallenger(playerId: string): Promise<FriendChallenge[]> {
-    return this.em.find(
-      FriendChallenge,
-      { _challengerPlayerId: playerId } as object,
-      { orderBy: { _createdAt: "desc" } as object },
-    );
+    return this.em.find(FriendChallenge, { _challengerPlayerId: playerId } as object, {
+      orderBy: { _createdAt: "desc" } as object,
+    });
   }
 
   async save(challenge: FriendChallenge): Promise<void> {

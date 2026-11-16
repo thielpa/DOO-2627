@@ -147,7 +147,9 @@ export class InMemoryFriendChallengeRepository implements FriendChallengeReposit
 
   async pendingForChallenged(playerId: string) {
     return [...this.challenges.values()]
-      .filter((challenge) => challenge.challengedPlayerId === playerId && challenge.status === "PENDING")
+      .filter(
+        (challenge) => challenge.challengedPlayerId === playerId && challenge.status === "PENDING",
+      )
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   }
 

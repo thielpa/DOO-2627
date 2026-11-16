@@ -5,13 +5,13 @@ import { HTTPException } from "hono/http-exception";
 import type { UseCases } from "../application";
 import { AuthenticationError } from "../application";
 import { DomainError, type DomainErrorCode } from "../domain";
+import type { SessionAuthEnv } from "./player-id";
+import { authRoutes } from "./routes/auth";
 import { categoryRoutes } from "./routes/categories";
+import { friendChallengeRoutes } from "./routes/friend-challenges";
 import { healthRoutes } from "./routes/health";
 import { matchRoutes } from "./routes/matches";
 import { matchmakingRoutes } from "./routes/matchmaking";
-import { authRoutes } from "./routes/auth";
-import { friendChallengeRoutes } from "./routes/friend-challenges";
-import type { SessionAuthEnv } from "./player-id";
 import { requireSameOriginForUnsafeMethods } from "./same-origin-unsafe";
 
 /** Wraps the handling of one request, e.g. to give it its own persistence context. */

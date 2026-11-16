@@ -4,7 +4,7 @@ import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { Message } from "primereact/message";
 import { Password } from "primereact/password";
-import { useState, type FormEvent } from "react";
+import { type FormEvent, useState } from "react";
 import { loginPlayer } from "../lib/auth";
 
 export const Route = createFileRoute("/login")({
@@ -33,7 +33,9 @@ function LoginPage() {
     <section className="mx-auto flex max-w-md flex-col gap-6 py-12">
       <div>
         <h1 className="text-3xl font-bold">Welcome to Languageduel</h1>
-        <p className="mt-2 text-gray-600">Log in or create your player with a username and password.</p>
+        <p className="mt-2 text-gray-600">
+          Log in or create your player with a username and password.
+        </p>
       </div>
 
       <form className="flex flex-col gap-4" onSubmit={submit}>

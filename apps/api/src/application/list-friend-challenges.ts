@@ -1,5 +1,5 @@
 import type { FriendChallengeRepository, PlayerRepository } from "../domain";
-import { friendChallengeView, type FriendChallengeView } from "./friend-challenge-view";
+import { type FriendChallengeView, friendChallengeView } from "./friend-challenge-view";
 
 export interface FriendChallengeLists {
   incoming: FriendChallengeView[];
@@ -18,8 +18,12 @@ export class ListFriendChallenges {
       this.challenges.forChallenger(playerId),
     ]);
     return {
-      incoming: await Promise.all(incoming.map((challenge) => friendChallengeView(challenge, this.players))),
-      outgoing: await Promise.all(outgoing.map((challenge) => friendChallengeView(challenge, this.players))),
+      incoming: await Promise.all(
+        incoming.map((challenge) => friendChallengeView(challenge, this.players)),
+      ),
+      outgoing: await Promise.all(
+        outgoing.map((challenge) => friendChallengeView(challenge, this.players)),
+      ),
     };
   }
 }

@@ -20,7 +20,8 @@ export class Session {
 
   static create(id: string, playerId: string, tokenDigest: string, expiresAt: Date): Session {
     if (id.length === 0) throw new DomainError("CONFLICT", "Session ID cannot be empty");
-    if (playerId.length === 0) throw new DomainError("CONFLICT", "Session player ID cannot be empty");
+    if (playerId.length === 0)
+      throw new DomainError("CONFLICT", "Session player ID cannot be empty");
     if (!/^[0-9a-f]{64}$/i.test(tokenDigest)) {
       throw new DomainError("CONFLICT", "Session token digest must be a SHA-256 hex digest");
     }

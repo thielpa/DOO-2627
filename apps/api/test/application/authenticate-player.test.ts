@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
+import { AuthenticatePlayer, AuthenticationError } from "../../src/application/authenticate-player";
 import type { PasswordHasher } from "../../src/application/password-hasher";
-import { AuthenticationError, AuthenticatePlayer } from "../../src/application/authenticate-player";
 import { Player } from "../../src/domain";
 import { InMemoryPlayerRepository } from "../support/in-memory-repositories";
 
@@ -105,7 +105,11 @@ describe("AuthenticatePlayer", () => {
   it("propagates password hashing errors", async () => {
     const failure = new Error("hashing failed");
     const players = new InMemoryPlayerRepository();
-    const { hasher } = fakeHasher({ hash: async () => { throw failure; } });
+    const { hasher } = fakeHasher({
+      hash: async () => {
+        throw failure;
+      },
+    });
 
     await expect(
       new AuthenticatePlayer(players, hasher).execute({ username: "alice", password: "secret" }),

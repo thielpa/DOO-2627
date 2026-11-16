@@ -92,9 +92,13 @@ it("lists my matches and sends session credentials without a player ID header", 
 it("logs in or creates a player and sends credentials to the backend", async () => {
   let player: { id: string; username: string } | null = null;
   const fetch = stubApi({
-    "GET /auth/me": () => player ? player : Response.json({ error: "Authentication required" }, { status: 401 }),
+    "GET /auth/me": () =>
+      player ? player : Response.json({ error: "Authentication required" }, { status: 401 }),
     "POST /auth/login": (init) => {
-      expect(JSON.parse(String(init?.body))).toEqual({ username: "new-player", password: "pass123" });
+      expect(JSON.parse(String(init?.body))).toEqual({
+        username: "new-player",
+        password: "pass123",
+      });
       player = { id: "player-2", username: "new-player" };
       return player;
     },
@@ -107,7 +111,9 @@ it("logs in or creates a player and sends credentials to the backend", async () 
 
   expect(await screen.findByText("new-player")).toBeInTheDocument();
   const loginCall = fetch.mock.calls.find(
-    ([input, init]) => new URL(String(input), "http://localhost").pathname === "/auth/login" && init?.method === "POST",
+    ([input, init]) =>
+      new URL(String(input), "http://localhost").pathname === "/auth/login" &&
+      init?.method === "POST",
   );
   expect(loginCall?.[1]?.credentials).toBe("include");
   expect(localStorage.getItem("languageduel.player")).toContain("new-player");
@@ -146,16 +152,19 @@ it("clears expired local identity and redirects protected pages to login", async
   });
   renderAt("/matches/m1");
 
-  expect(await screen.findByRole("heading", { name: "Welcome to Languageduel" })).toBeInTheDocument();
+  expect(
+    await screen.findByRole("heading", { name: "Welcome to Languageduel" }),
+  ).toBeInTheDocument();
   expect(localStorage.getItem("languageduel.player")).toBeNull();
 });
 
 it("logs out through the backend and clears the displayed identity", async () => {
   let authenticated = true;
   const fetch = stubApi({
-    "GET /auth/me": () => authenticated
-      ? { id: "player-1", username: "alice" }
-      : Response.json({ error: "Authentication required" }, { status: 401 }),
+    "GET /auth/me": () =>
+      authenticated
+        ? { id: "player-1", username: "alice" }
+        : Response.json({ error: "Authentication required" }, { status: 401 }),
     "POST /auth/logout": () => {
       authenticated = false;
       return new Response(null, { status: 204 });
@@ -165,16 +174,23 @@ it("logs out through the backend and clears the displayed identity", async () =>
 
   fireEvent.click(await screen.findByRole("button", { name: "Log out" }));
 
-  expect(await screen.findByRole("heading", { name: "Welcome to Languageduel" })).toBeInTheDocument();
+  expect(
+    await screen.findByRole("heading", { name: "Welcome to Languageduel" }),
+  ).toBeInTheDocument();
   expect(localStorage.getItem("languageduel.player")).toBeNull();
   const logoutCall = fetch.mock.calls.find(
-    ([input, init]) => new URL(String(input), "http://localhost").pathname === "/auth/logout" && init?.method === "POST",
+    ([input, init]) =>
+      new URL(String(input), "http://localhost").pathname === "/auth/logout" &&
+      init?.method === "POST",
   );
   expect(logoutCall?.[1]?.credentials).toBe("include");
 });
 
 it("shows retry on session-check server errors without clearing cached identity", async () => {
-  localStorage.setItem("languageduel.player", JSON.stringify({ id: "player-1", username: "alice" }));
+  localStorage.setItem(
+    "languageduel.player",
+    JSON.stringify({ id: "player-1", username: "alice" }),
+  );
   const fetch = vi.fn(async () => Response.json({ error: "Unavailable" }, { status: 503 }));
   vi.stubGlobal("fetch", fetch);
   renderAt("/");
@@ -207,7 +223,10 @@ it("shows incoming and outgoing challenge usernames and statuses", async () => {
     status: "DECLINED" as const,
   };
   stubApi({
-    "GET /api/friend-challenges": () => ({ incoming: [incomingChallenge], outgoing: [outgoingChallenge] }),
+    "GET /api/friend-challenges": () => ({
+      incoming: [incomingChallenge],
+      outgoing: [outgoingChallenge],
+    }),
   });
   renderAt("/");
 
@@ -220,24 +239,28 @@ it("shows incoming and outgoing challenge usernames and statuses", async () => {
 });
 
 it("invites by the exact username and refreshes the lists", async () => {
-  let outgoing: typeof incomingChallenge[] = [];
+  let outgoing: (typeof incomingChallenge)[] = [];
   const fetch = stubApi({
     "GET /api/friend-challenges": () => ({ incoming: [], outgoing }),
     "POST /api/friend-challenges": (init) => {
       expect(JSON.parse(String(init?.body))).toEqual({ username: "CaseSensitive" });
-      outgoing = [{
-        ...incomingChallenge,
-        challengerPlayerId: "player-1",
-        challengerUsername: "alice",
-        challengedPlayerId: "player-2",
-        challengedUsername: "CaseSensitive",
-      }];
+      outgoing = [
+        {
+          ...incomingChallenge,
+          challengerPlayerId: "player-1",
+          challengerUsername: "alice",
+          challengedPlayerId: "player-2",
+          challengedUsername: "CaseSensitive",
+        },
+      ];
       return outgoing[0];
     },
   });
   renderAt("/");
 
-  fireEvent.change(screen.getByLabelText("Invite by username"), { target: { value: "CaseSensitive" } });
+  fireEvent.change(screen.getByLabelText("Invite by username"), {
+    target: { value: "CaseSensitive" },
+  });
   fireEvent.click(screen.getByRole("button", { name: "Send invitation" }));
 
   expect(await screen.findByText("Invitation sent.")).toBeInTheDocument();

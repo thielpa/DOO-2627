@@ -40,13 +40,7 @@ export class FriendChallenge {
       throw new DomainError("CONFLICT", "Challenge creation time must be a valid date");
     }
 
-    return new FriendChallenge(
-      id,
-      challengerPlayerId,
-      challengedPlayerId,
-      "PENDING",
-      createdAt,
-    );
+    return new FriendChallenge(id, challengerPlayerId, challengedPlayerId, "PENDING", createdAt);
   }
 
   get id(): string {
@@ -97,7 +91,10 @@ export class FriendChallenge {
       throw new DomainError("CONFLICT", "Challenge has already been resolved");
     }
     if (!Number.isFinite(at.getTime()) || at.getTime() < this._createdAt.getTime()) {
-      throw new DomainError("CONFLICT", "Challenge response time must be valid and not precede creation");
+      throw new DomainError(
+        "CONFLICT",
+        "Challenge response time must be valid and not precede creation",
+      );
     }
     this._status = status;
     this._respondedAt = at;

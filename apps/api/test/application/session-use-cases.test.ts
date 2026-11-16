@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
 import { describe, expect, it } from "bun:test";
+import { createHash } from "node:crypto";
 import { CreateSession, SESSION_LIFETIME_MS } from "../../src/application/create-session";
 import { InvalidateSession } from "../../src/application/invalidate-session";
 import { ValidateSession } from "../../src/application/validate-session";
@@ -37,7 +37,9 @@ describe("session use cases", () => {
 
     now = created.expiresAt;
     expect(await validate.execute(created.token)).toBeNull();
-    expect((await sessions.byTokenDigest(digest(created.token)))?.expiresAt).toEqual(created.expiresAt);
+    expect((await sessions.byTokenDigest(digest(created.token)))?.expiresAt).toEqual(
+      created.expiresAt,
+    );
   });
 
   it("invalidates only the session matching the supplied token", async () => {
@@ -69,8 +71,14 @@ describe("session use cases", () => {
       },
     };
 
-    await expect(new ValidateSession(sessions, () => new Date()).execute("token")).rejects.toBe(failure);
-    await expect(new InvalidateSession(sessions, () => new Date()).execute("token")).rejects.toBe(failure);
-    await expect(new CreateSession(sessions, () => new Date()).execute(playerId)).rejects.toBe(failure);
+    await expect(new ValidateSession(sessions, () => new Date()).execute("token")).rejects.toBe(
+      failure,
+    );
+    await expect(new InvalidateSession(sessions, () => new Date()).execute("token")).rejects.toBe(
+      failure,
+    );
+    await expect(new CreateSession(sessions, () => new Date()).execute(playerId)).rejects.toBe(
+      failure,
+    );
   });
 });

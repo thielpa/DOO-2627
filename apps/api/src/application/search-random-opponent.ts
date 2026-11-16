@@ -1,6 +1,6 @@
 import { type GameMode, Lobby, type LobbyRepository, type MatchRepository } from "../domain";
-import type { Transaction } from "./transaction";
 import { createStartedMatch } from "./start-match";
+import type { Transaction } from "./transaction";
 
 export type SearchResult =
   | { status: "searching"; lobbyId: string }

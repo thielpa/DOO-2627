@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { UniqueConstraintViolationException, LockMode } from "@mikro-orm/core";
+import { LockMode, UniqueConstraintViolationException } from "@mikro-orm/core";
 import type { EntityManager } from "@mikro-orm/postgresql";
 import { DomainError, FriendChallenge } from "../../../src/domain";
 import {
@@ -28,16 +28,21 @@ describe("MikroOrmFriendChallengeRepository", () => {
         return [challenge];
       },
       persist: (entity: FriendChallenge) => ({
-        flush: async () => { persisted.push(entity); },
+        flush: async () => {
+          persisted.push(entity);
+        },
       }),
     } as unknown as EntityManager;
     const repository = new MikroOrmFriendChallengeRepository(em);
 
     expect(await repository.byId(challenge.id)).toBe(challenge);
     expect(await repository.byIdForUpdate(challenge.id)).toBe(challenge);
-    expect(await repository.pendingBetween(challenge.challengerPlayerId, challenge.challengedPlayerId))
-      .toBe(challenge);
-    expect(await repository.pendingForChallenged(challenge.challengedPlayerId)).toEqual([challenge]);
+    expect(
+      await repository.pendingBetween(challenge.challengerPlayerId, challenge.challengedPlayerId),
+    ).toBe(challenge);
+    expect(await repository.pendingForChallenged(challenge.challengedPlayerId)).toEqual([
+      challenge,
+    ]);
     expect(await repository.forChallenger(challenge.challengerPlayerId)).toEqual([challenge]);
     await repository.save(challenge);
 
@@ -69,10 +74,16 @@ describe("MikroOrmFriendChallengeRepository", () => {
       new Date("2026-11-15T12:00:00Z"),
     );
     const uniqueError = new UniqueConstraintViolationException(
-      Object.assign(new Error("duplicate key"), { constraint: PENDING_FRIEND_CHALLENGE_UNIQUE_INDEX }),
+      Object.assign(new Error("duplicate key"), {
+        constraint: PENDING_FRIEND_CHALLENGE_UNIQUE_INDEX,
+      }),
     );
     const em = {
-      persist: () => ({ flush: async () => { throw uniqueError; } }),
+      persist: () => ({
+        flush: async () => {
+          throw uniqueError;
+        },
+      }),
     } as unknown as EntityManager;
     const repository = new MikroOrmFriendChallengeRepository(em);
 
@@ -98,7 +109,11 @@ describe("MikroOrmFriendChallengeRepository", () => {
 
     for (const failure of failures) {
       const em = {
-        persist: () => ({ flush: async () => { throw failure; } }),
+        persist: () => ({
+          flush: async () => {
+            throw failure;
+          },
+        }),
       } as unknown as EntityManager;
       const repository = new MikroOrmFriendChallengeRepository(em);
 

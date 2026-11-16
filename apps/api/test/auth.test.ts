@@ -79,7 +79,8 @@ describe("HTTP authentication", () => {
   it("rejects missing, invalid, and expired sessions at /auth/me", async () => {
     expect((await app.request("/auth/me")).status).toBe(401);
     expect(
-      (await app.request("/auth/me", { headers: { Cookie: `${SESSION_COOKIE_NAME}=invalid` } })).status,
+      (await app.request("/auth/me", { headers: { Cookie: `${SESSION_COOKIE_NAME}=invalid` } }))
+        .status,
     ).toBe(401);
 
     const authenticated = await login("alice", "secret");
@@ -130,12 +131,12 @@ describe("HTTP authentication", () => {
     expect(clearedCookie).toMatch(/HttpOnly/i);
     expect(clearedCookie).toMatch(/SameSite=Lax/i);
     expect(clearedCookie).toMatch(/Path=\//i);
-    expect(
-      (await app.request("/api/matches", { headers: { Cookie: firstCookie } })).status,
-    ).toBe(401);
-    expect(
-      (await app.request("/api/matches", { headers: { Cookie: secondCookie } })).status,
-    ).toBe(200);
+    expect((await app.request("/api/matches", { headers: { Cookie: firstCookie } })).status).toBe(
+      401,
+    );
+    expect((await app.request("/api/matches", { headers: { Cookie: secondCookie } })).status).toBe(
+      200,
+    );
   });
 
   it("clears the cookie safely when logout has no valid session", async () => {

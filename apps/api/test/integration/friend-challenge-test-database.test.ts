@@ -16,12 +16,17 @@ describe("Friend Challenge test database URL guard", () => {
 
   it("rejects the development database", () => {
     expect(() =>
-      requireFriendChallengeTestDatabaseUrl("postgresql://user:password@localhost:5432/languageduel"),
-    ).toThrow("FRIEND_CHALLENGE_TEST_DATABASE_URL must target database " + FRIEND_CHALLENGE_TEST_DATABASE_NAME);
+      requireFriendChallengeTestDatabaseUrl(
+        "postgresql://user:password@localhost:5432/languageduel",
+      ),
+    ).toThrow(
+      "FRIEND_CHALLENGE_TEST_DATABASE_URL must target database " +
+        FRIEND_CHALLENGE_TEST_DATABASE_NAME,
+    );
   });
 
   it("accepts the dedicated PostgreSQL test database without changing the URL", () => {
-    const url = "postgresql://user:password@localhost:5432/" + FRIEND_CHALLENGE_TEST_DATABASE_NAME;
+    const url = `postgresql://user:password@localhost:5432/${FRIEND_CHALLENGE_TEST_DATABASE_NAME}`;
     expect(requireFriendChallengeTestDatabaseUrl(url)).toBe(url);
   });
 
@@ -33,7 +38,8 @@ describe("Friend Challenge test database URL guard", () => {
     } catch (error) {
       expect((error as Error).message).not.toContain("password");
     }
-    expect(() => requireFriendChallengeTestDatabaseUrl("https://example.com/database"))
-      .toThrow("FRIEND_CHALLENGE_TEST_DATABASE_URL must be a PostgreSQL connection URL.");
+    expect(() => requireFriendChallengeTestDatabaseUrl("https://example.com/database")).toThrow(
+      "FRIEND_CHALLENGE_TEST_DATABASE_URL must be a PostgreSQL connection URL.",
+    );
   });
 });

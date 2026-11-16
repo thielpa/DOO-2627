@@ -13,10 +13,14 @@ describe("FriendChallenge", () => {
   });
 
   it("rejects invalid IDs, players, self-challenges, and creation dates", () => {
-    expect(() => FriendChallenge.create("", "player-a", "player-b", createdAt)).toThrow(DomainError);
+    expect(() => FriendChallenge.create("", "player-a", "player-b", createdAt)).toThrow(
+      DomainError,
+    );
     expect(() => FriendChallenge.create("c1", "", "player-b", createdAt)).toThrow(DomainError);
     expect(() => FriendChallenge.create("c1", "player-a", "", createdAt)).toThrow(DomainError);
-    expect(() => FriendChallenge.create("c1", "player-a", "player-a", createdAt)).toThrow(DomainError);
+    expect(() => FriendChallenge.create("c1", "player-a", "player-a", createdAt)).toThrow(
+      DomainError,
+    );
     expect(() => FriendChallenge.create("c1", "player-a", "player-b", new Date(NaN))).toThrow(
       DomainError,
     );

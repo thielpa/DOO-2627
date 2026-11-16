@@ -1,6 +1,11 @@
-import { DomainError, FriendChallenge, type FriendChallengeRepository, type PlayerRepository } from "../domain";
+import {
+  DomainError,
+  FriendChallenge,
+  type FriendChallengeRepository,
+  type PlayerRepository,
+} from "../domain";
+import { type FriendChallengeView, friendChallengeView } from "./friend-challenge-view";
 import type { Transaction } from "./transaction";
-import { friendChallengeView, type FriendChallengeView } from "./friend-challenge-view";
 
 export class InviteFriend {
   constructor(

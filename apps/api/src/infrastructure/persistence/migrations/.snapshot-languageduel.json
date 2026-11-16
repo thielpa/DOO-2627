@@ -1,8 +1,6 @@
 {
   "name": "public",
-  "namespaces": [
-    "public"
-  ],
+  "namespaces": ["public"],
   "tables": [
     {
       "name": "category",
@@ -45,9 +43,7 @@
       },
       "indexes": [
         {
-          "columnNames": [
-            "id"
-          ],
+          "columnNames": ["id"],
           "composite": false,
           "constraint": true,
           "keyName": "category_pkey",
@@ -169,10 +165,7 @@
       },
       "indexes": [
         {
-          "columnNames": [
-            "challenged_player_id",
-            "status"
-          ],
+          "columnNames": ["challenged_player_id", "status"],
           "composite": true,
           "constraint": false,
           "keyName": "friend_challenge_incoming_status_index",
@@ -180,10 +173,7 @@
           "unique": false
         },
         {
-          "columnNames": [
-            "challenger_player_id",
-            "created_at"
-          ],
+          "columnNames": ["challenger_player_id", "created_at"],
           "composite": true,
           "constraint": false,
           "keyName": "friend_challenge_outgoing_created_index",
@@ -191,10 +181,7 @@
           "unique": false
         },
         {
-          "columnNames": [
-            "challenger_player_id",
-            "challenged_player_id"
-          ],
+          "columnNames": ["challenger_player_id", "challenged_player_id"],
           "composite": true,
           "constraint": false,
           "keyName": "friend_challenge_pending_pair_unique",
@@ -203,9 +190,7 @@
           "where": "\"status\" = 'PENDING'"
         },
         {
-          "columnNames": [
-            "id"
-          ],
+          "columnNames": ["id"],
           "composite": false,
           "constraint": true,
           "keyName": "friend_challenge_pkey",
@@ -327,9 +312,7 @@
       },
       "indexes": [
         {
-          "columnNames": [
-            "id"
-          ],
+          "columnNames": ["id"],
           "composite": false,
           "constraint": true,
           "keyName": "lobby_pkey",
@@ -337,9 +320,7 @@
           "unique": true
         },
         {
-          "columnNames": [
-            "status"
-          ],
+          "columnNames": ["status"],
           "composite": false,
           "constraint": false,
           "keyName": "lobby_status_index",
@@ -478,9 +459,7 @@
       },
       "indexes": [
         {
-          "columnNames": [
-            "id"
-          ],
+          "columnNames": ["id"],
           "composite": false,
           "constraint": true,
           "keyName": "match_pkey",
@@ -551,9 +530,7 @@
       },
       "indexes": [
         {
-          "columnNames": [
-            "id"
-          ],
+          "columnNames": ["id"],
           "composite": false,
           "constraint": true,
           "keyName": "player_pkey",
@@ -561,9 +538,7 @@
           "unique": true
         },
         {
-          "columnNames": [
-            "username"
-          ],
+          "columnNames": ["username"],
           "composite": false,
           "constraint": true,
           "keyName": "player_username_unique",
@@ -685,9 +660,7 @@
       },
       "indexes": [
         {
-          "columnNames": [
-            "category_id"
-          ],
+          "columnNames": ["category_id"],
           "composite": false,
           "constraint": false,
           "keyName": "question_category_id_index",
@@ -695,9 +668,7 @@
           "unique": false
         },
         {
-          "columnNames": [
-            "id"
-          ],
+          "columnNames": ["id"],
           "composite": false,
           "constraint": true,
           "keyName": "question_pkey",
@@ -802,9 +773,7 @@
       },
       "indexes": [
         {
-          "columnNames": [
-            "id"
-          ],
+          "columnNames": ["id"],
           "composite": false,
           "constraint": true,
           "keyName": "session_pkey",
@@ -812,9 +781,7 @@
           "unique": true
         },
         {
-          "columnNames": [
-            "player_id"
-          ],
+          "columnNames": ["player_id"],
           "composite": false,
           "constraint": false,
           "keyName": "session_player_id_index",
@@ -822,9 +789,7 @@
           "unique": false
         },
         {
-          "columnNames": [
-            "token_digest"
-          ],
+          "columnNames": ["token_digest"],
           "composite": false,
           "constraint": true,
           "keyName": "session_token_digest_unique",

@@ -19,7 +19,11 @@ describe("MikroOrmSessionRepository", () => {
         where = query;
         return session;
       },
-      persist: (entity: Session) => ({ flush: async () => { persisted = entity; } }),
+      persist: (entity: Session) => ({
+        flush: async () => {
+          persisted = entity;
+        },
+      }),
     } as unknown as EntityManager;
     const repository = new MikroOrmSessionRepository(em);
 

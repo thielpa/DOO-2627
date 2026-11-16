@@ -4,9 +4,9 @@ import {
   type MatchRepository,
   type PlayerRepository,
 } from "../domain";
-import type { Transaction } from "./transaction";
-import { friendChallengeView, type FriendChallengeView } from "./friend-challenge-view";
+import { type FriendChallengeView, friendChallengeView } from "./friend-challenge-view";
 import { createStartedMatch } from "./start-match";
+import type { Transaction } from "./transaction";
 
 export interface AcceptedFriendChallenge {
   challenge: FriendChallengeView;

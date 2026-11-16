@@ -1,4 +1,9 @@
-import { type GameMode, type Match, type MatchRepository, Match as MatchAggregate } from "../domain";
+import {
+  type GameMode,
+  type Match,
+  Match as MatchAggregate,
+  type MatchRepository,
+} from "../domain";
 
 /** Shared Match creation policy used by random matchmaking and accepted friend challenges. */
 export async function createStartedMatch(
