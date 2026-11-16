@@ -276,7 +276,13 @@ it("invites by the exact username and refreshes the lists", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Send invitation" }));
 
   expect(await screen.findByText("Invitation sent.")).toBeInTheDocument();
-  expect(await screen.findByText(/alice challenged CaseSensitive/)).toBeInTheDocument();
+  expect(
+    await screen.findByText(
+      (_content, element) =>
+        element?.tagName === "P" &&
+        element.textContent?.replace(/\s+/g, " ").trim() === "alice challenged CaseSensitive",
+    ),
+  ).toBeInTheDocument();
   expect(fetch).toHaveBeenCalledWith(
     expect.stringContaining("/api/friend-challenges"),
     expect.objectContaining({ method: "POST", credentials: "include" }),
