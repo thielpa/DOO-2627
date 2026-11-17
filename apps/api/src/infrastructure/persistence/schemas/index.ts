@@ -3,6 +3,7 @@ import { CategorySchema } from "./category.schema";
 import { FriendChallengeSchema } from "./friend-challenge.schema";
 import { LobbySchema } from "./lobby.schema";
 import { MatchSchema, PlayerAnswerSchema, RoundSchema } from "./match.schema";
+import { DeliverySchema, NotificationSchema } from "./notification.schema";
 import { PlayerSchema } from "./player.schema";
 import { AnswerOptionSchema, QuestionSchema } from "./question.schema";
 import { SessionSchema } from "./session.schema";
@@ -17,6 +18,8 @@ export const schemas: EntitySchema[] = [
   PlayerSchema,
   SessionSchema,
   FriendChallengeSchema,
+  NotificationSchema,
+  DeliverySchema,
   PlayerAnswerSchema,
   RoundSchema,
   MatchSchema,

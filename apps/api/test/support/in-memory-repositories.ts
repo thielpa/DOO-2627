@@ -7,11 +7,14 @@ import type {
   FriendChallenge,
   FriendChallengeRepository,
   GameMode,
+  ListOptions,
   Lobby,
   LobbyRepository,
   Match,
   MatchEvent,
   MatchRepository,
+  Notification,
+  NotificationRepository,
   OverdueMatch,
   Player,
   PlayerRepository,
@@ -188,6 +191,67 @@ export class InMemoryFriendChallengeRepository implements FriendChallengeReposit
   }
 }
 
+export class InMemoryNotificationRepository implements NotificationRepository {
+  private readonly notifications = new Map<string, Notification>();
+
+  async save(notification: Notification) {
+    this.notifications.set(notification.id, notification);
+  }
+
+  async addIfAbsent(notification: Notification) {
+    const exists = [...this.notifications.values()].some(
+      (n) => n.eventId === notification.eventId && n.recipientId === notification.recipientId,
+    );
+    if (!exists) this.notifications.set(notification.id, notification);
+    return !exists;
+  }
+
+  async byIdForRecipient(id: string, recipientId: string) {
+    const found = this.notifications.get(id);
+    return found && found.recipientId === recipientId ? found : null;
+  }
+
+  private visibleFor(recipientId: string) {
+    return [...this.notifications.values()].filter(
+      (n) => n.recipientId === recipientId && n.isVisibleInApp(),
+    );
+  }
+
+  async listForRecipient(recipientId: string, { after, limit }: ListOptions) {
+    const position = (n: Notification) => ({ at: n.visibleAt()?.getTime() ?? 0, id: n.id });
+    const compare = (a: Notification, b: Notification) => {
+      const pa = position(a);
+      const pb = position(b);
+      return pa.at - pb.at || (pa.id < pb.id ? -1 : pa.id > pb.id ? 1 : 0);
+    };
+    const matching = this.visibleFor(recipientId)
+      .filter((n) => {
+        if (!after) return true;
+        const p = position(n);
+        const t = after.visibleAt.getTime();
+        return p.at > t || (p.at === t && p.id > after.id);
+      })
+      .sort(compare);
+    // Incremental: the oldest `limit` after the cursor; initial: the newest `limit`. Newest first.
+    const page = after ? matching.slice(0, limit) : matching.slice(-limit);
+    return page.reverse();
+  }
+
+  async unreadCount(recipientId: string) {
+    return this.visibleFor(recipientId).filter((n) => !n.readAt).length;
+  }
+
+  async claimPendingDeliveries(limit: number) {
+    return [...this.notifications.values()]
+      .flatMap((notification) =>
+        notification.deliveries
+          .filter((delivery) => delivery.status === "PENDING")
+          .map((delivery) => ({ notification, delivery })),
+      )
+      .slice(0, limit);
+  }
+}
+
 /** Use cases on in-memory repositories; `events` records every dispatched event. */
 export function inMemoryUseCases(
   categories: Category[] = [],
@@ -203,6 +267,7 @@ export function inMemoryUseCases(
     players: new InMemoryPlayerRepository(),
     sessions: new InMemorySessionRepository(),
     friendChallenges: new InMemoryFriendChallengeRepository(),
+    notifications: new InMemoryNotificationRepository(),
     transaction: { run: (work) => work() },
   };
   const passwordHasher: PasswordHasher = {
@@ -216,8 +281,12 @@ export function inMemoryUseCases(
       events.push(event);
     });
   }
+  const useCases = createUseCases(repositories, passwordHasher, dispatcher, options);
+  dispatcher.subscribe("TurnPassed", useCases.notificationEventHandlers.TurnPassed);
+  dispatcher.subscribe("MatchCompleted", useCases.notificationEventHandlers.MatchCompleted);
+  dispatcher.subscribe("MatchExpired", useCases.notificationEventHandlers.MatchExpired);
   return {
-    useCases: createUseCases(repositories, passwordHasher, dispatcher, options),
+    useCases,
     matches,
     events,
   };

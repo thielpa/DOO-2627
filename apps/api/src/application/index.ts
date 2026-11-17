@@ -4,6 +4,7 @@ import {
   type FriendChallengeRepository,
   type LobbyRepository,
   type MatchRepository,
+  type NotificationRepository,
   type PlayerRepository,
   type QuestionRepository,
   type SessionRepository,
@@ -24,6 +25,7 @@ import { InviteFriend } from "./invite-friend";
 import { ListCategories } from "./list-categories";
 import { ListFriendChallenges } from "./list-friend-challenges";
 import { ListMyMatches } from "./list-my-matches";
+import { createNotificationUseCases, type NotificationOptions } from "./notification";
 import type { PasswordHasher } from "./password-hasher";
 import { SearchRandomOpponent } from "./search-random-opponent";
 import { ShowQuestion } from "./show-question";
@@ -43,6 +45,13 @@ export type { CurrentRoundView, MatchView, RoundView } from "./get-match-view";
 export type { CategoryView } from "./list-categories";
 export type { FriendChallengeLists } from "./list-friend-challenges";
 export type { MatchResult, MatchSummary } from "./match-summary";
+export type {
+  ListNotificationsResult,
+  NotificationEventHandlers,
+  NotificationView,
+  RelayResult,
+} from "./notification";
+export { InvalidNotificationQuery } from "./notification";
 export type { PasswordHasher } from "./password-hasher";
 export type { SearchResult } from "./search-random-opponent";
 export type { QuestionView } from "./show-question";
@@ -57,6 +66,7 @@ export interface Repositories {
   players: PlayerRepository;
   friendChallenges: FriendChallengeRepository;
   sessions: SessionRepository;
+  notifications: NotificationRepository;
   transaction: Transaction;
 }
 
@@ -64,6 +74,7 @@ export interface UseCaseOptions {
   now?: () => Date;
   /** How long a player has for their turn before they lose the match. */
   turnTimeoutMs?: number;
+  notification?: NotificationOptions;
 }
 
 export function createUseCases(
@@ -75,11 +86,16 @@ export function createUseCases(
     players,
     sessions,
     friendChallenges,
+    notifications,
     transaction,
   }: Repositories,
   passwordHasher: PasswordHasher,
   events: EventDispatcher,
-  { now = () => new Date(), turnTimeoutMs = DEFAULT_TURN_TIMEOUT_MS }: UseCaseOptions = {},
+  {
+    now = () => new Date(),
+    turnTimeoutMs = DEFAULT_TURN_TIMEOUT_MS,
+    notification = {},
+  }: UseCaseOptions = {},
 ) {
   return {
     authenticatePlayer: new AuthenticatePlayer(players, passwordHasher),
@@ -113,6 +129,7 @@ export function createUseCases(
     showQuestion: new ShowQuestion(matches, questions, transaction, now),
     answerQuestion: new AnswerQuestion(matches, questions, transaction, events, now),
     expireOverdueMatches: new ExpireOverdueMatches(matches, transaction, events, now),
+    ...createNotificationUseCases(notifications, transaction, now, notification),
   };
 }
 

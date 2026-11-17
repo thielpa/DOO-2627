@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-router";
 import { Button } from "primereact/button";
 import { Message } from "primereact/message";
+import { NotificationBell } from "../components/notifications/notification-bell";
 import { logoutPlayer, restorePlayerSession } from "../lib/auth";
 
 export const Route = createRootRoute({
@@ -62,6 +63,7 @@ function RootLayout() {
                 Languageduel
               </Link>
               <div className="flex items-center gap-3">
+                <NotificationBell />
                 <span>{player.username}</span>
                 <Button
                   label="Log out"

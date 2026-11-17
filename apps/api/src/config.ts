@@ -10,6 +10,10 @@ export interface AppConfig {
   turnTimeoutMs: number;
   /** How often the expiry job looks for overdue matches. */
   expiryIntervalMs: number;
+  /** How often pending notification deliveries are relayed. */
+  notificationRelayIntervalMs: number;
+  /** Failed delivery attempts after which a delivery is given up. */
+  notificationMaxAttempts: number;
 }
 
 /** Reads the settings from the environment; refuses to start on invalid values. */
@@ -22,6 +26,8 @@ export function loadConfig(env: Env = process.env): AppConfig {
     port: positiveNumber(env, "PORT", 3000),
     turnTimeoutMs,
     expiryIntervalMs: positiveNumber(env, "EXPIRY_INTERVAL_SECONDS", 60) * 1000,
+    notificationRelayIntervalMs: positiveNumber(env, "NOTIFICATION_RELAY_INTERVAL_MS", 1000),
+    notificationMaxAttempts: Math.ceil(positiveNumber(env, "NOTIFICATION_MAX_ATTEMPTS", 5)),
   };
 }
 
