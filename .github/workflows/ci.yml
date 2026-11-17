@@ -24,11 +24,14 @@ jobs:
           --health-retries 5
     env:
       FRIEND_CHALLENGE_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/languageduel_friend_challenge_test
+      NOTIFICATION_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/languageduel_notification_test
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.4
+      - name: Create the Notification integration test database
+        run: psql "postgresql://postgres:postgres@localhost:5432/postgres" -c 'create database languageduel_notification_test'
       - run: bun install --frozen-lockfile
       - run: bunx biome ci .
       - run: bun run build

@@ -38,15 +38,22 @@ function MatchPage() {
 
       {error && <Message severity="error" text={error.message} />}
 
-      <MatchStage
-        view={view}
-        feedback={feedback}
-        question={question.data}
-        isBusy={chooseCategory.isPending || answer.isPending}
-        onNext={clearFeedback}
-        onChooseCategory={(categoryId) => chooseCategory.mutate(categoryId)}
-        onAnswer={(q, optionId) => answer.mutate({ question: q, optionId })}
-      />
+      {view.status === "EXPIRED" ? (
+        <p className="text-center text-gray-600">
+          <i className="pi pi-clock mr-2" />
+          This match expired before it was finished. No more moves can be played.
+        </p>
+      ) : (
+        <MatchStage
+          view={view}
+          feedback={feedback}
+          question={question.data}
+          isBusy={chooseCategory.isPending || answer.isPending}
+          onNext={clearFeedback}
+          onChooseCategory={(categoryId) => chooseCategory.mutate(categoryId)}
+          onAnswer={(q, optionId) => answer.mutate({ question: q, optionId })}
+        />
+      )}
 
       {areResultsVisible && <RoundOverview rounds={view.rounds} />}
     </section>

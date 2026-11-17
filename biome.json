@@ -93,6 +93,130 @@
           }
         }
       }
+    },
+    {
+      "includes": ["apps/api/src/domain/notification/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@mikro-orm/*", "hono", "hono/*", "react", "react/*"],
+                    "message": "The domain must not depend on frameworks or outer layers (see docs/architecture.md)."
+                  },
+                  {
+                    "group": [
+                      "**/application",
+                      "**/infrastructure",
+                      "**/http",
+                      "**/application/**",
+                      "**/infrastructure/**",
+                      "**/http/**"
+                    ],
+                    "message": "The domain must not depend on frameworks or outer layers (see docs/architecture.md)."
+                  },
+                  {
+                    "group": [
+                      "**/domain",
+                      "**/domain/index",
+                      "**/domain/match",
+                      "**/domain/match/**",
+                      "**/domain/matchmaking",
+                      "**/domain/matchmaking/**",
+                      "**/match",
+                      "**/match/**",
+                      "**/matchmaking",
+                      "**/matchmaking/**"
+                    ],
+                    "message": "The Notification context must not depend on the Match or Matchmaking contexts, nor on the domain barrel that re-exports them. Consume domain events from domain/shared/events and import Notification code by its specific path (see docs/events.md)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/api/src/application/notification/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@mikro-orm/*", "hono", "hono/*", "react", "react/*"],
+                    "message": "The application layer must not depend on frameworks or outer layers (see docs/architecture.md)."
+                  },
+                  {
+                    "group": ["**/infrastructure", "**/http", "**/infrastructure/**", "**/http/**"],
+                    "message": "The application layer must not depend on frameworks or outer layers (see docs/architecture.md)."
+                  },
+                  {
+                    "group": [
+                      "**/domain",
+                      "**/domain/index",
+                      "**/domain/match",
+                      "**/domain/match/**",
+                      "**/domain/matchmaking",
+                      "**/domain/matchmaking/**",
+                      "**/match",
+                      "**/match/**",
+                      "**/matchmaking",
+                      "**/matchmaking/**"
+                    ],
+                    "message": "The Notification context must not depend on the Match or Matchmaking contexts, nor on the domain barrel that re-exports them. Consume domain events from domain/shared/events and import Notification code by its specific path (see docs/events.md)."
+                  },
+                  {
+                    "group": ["..", "../index", "**/application", "**/application/index"],
+                    "message": "The Notification application code must not import the application barrel, which re-exports the match use cases. Import the specific file (see docs/events.md)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "apps/api/src/infrastructure/persistence/schemas/notification.schema.ts",
+        "apps/api/src/infrastructure/persistence/repositories/mikro-orm-notification.repository.ts",
+        "apps/api/src/http/routes/notifications.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "**/domain",
+                      "**/domain/index",
+                      "**/domain/match",
+                      "**/domain/match/**",
+                      "**/domain/matchmaking",
+                      "**/domain/matchmaking/**",
+                      "**/match",
+                      "**/match/**",
+                      "**/matchmaking",
+                      "**/matchmaking/**"
+                    ],
+                    "message": "The Notification context must not depend on the Match or Matchmaking contexts, nor on the domain barrel that re-exports them. Consume domain events from domain/shared/events and import Notification code by its specific path (see docs/events.md)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   ]
 }
