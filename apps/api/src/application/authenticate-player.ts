@@ -1,4 +1,4 @@
-import { Player, type PlayerRepository } from "../domain";
+import { DomainError, Player, type PlayerRepository } from "../domain";
 import type { PasswordHasher } from "./password-hasher";
 
 export class AuthenticationError extends Error {
@@ -36,7 +36,19 @@ export class AuthenticatePlayer {
 
     const passwordHash = await this.passwordHasher.hash(password);
     const player = Player.create(crypto.randomUUID(), username, passwordHash);
-    await this.players.save(player);
+    try {
+      await this.players.save(player);
+    } catch (error) {
+      if (!(error instanceof DomainError) || error.code !== "CONFLICT") throw error;
+
+      // A competing first login may have created this case-insensitive username.
+      const racedPlayer = await this.players.byUsername(username);
+      if (!racedPlayer) throw error;
+      if (!(await this.passwordHasher.verify(password, racedPlayer.passwordHash))) {
+        throw new AuthenticationError();
+      }
+      return this.publicIdentity(racedPlayer);
+    }
     return this.publicIdentity(player);
   }
 

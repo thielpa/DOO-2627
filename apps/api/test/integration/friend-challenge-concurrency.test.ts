@@ -33,7 +33,7 @@ describe("FriendChallenge PostgreSQL concurrency", () => {
       `create table "${schemaName}"."friend_challenge" ("id" uuid primary key, "challenger_player_id" uuid not null, "challenged_player_id" uuid not null, "status" varchar(255) not null, "created_at" timestamptz not null, "responded_at" timestamptz null)`,
     );
     await connection.execute(
-      `create unique index "friend_challenge_pending_pair_unique" on "${schemaName}"."friend_challenge" ("challenger_player_id", "challenged_player_id") where "status" = 'PENDING'`,
+      `create unique index "friend_challenge_pending_unordered_pair_unique" on "${schemaName}"."friend_challenge" (least("challenger_player_id", "challenged_player_id"), greatest("challenger_player_id", "challenged_player_id")) where "status" = 'PENDING'`,
     );
     await connection.execute(
       `create table "${schemaName}"."test_match" ("id" uuid primary key, "test_run_id" uuid not null)`,
@@ -144,6 +144,28 @@ describe("FriendChallenge PostgreSQL concurrency", () => {
     const results = await Promise.allSettled([
       makeInvite().execute(challenger.id, challenged.username),
       makeInvite().execute(challenger.id, challenged.username),
+    ]);
+
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    const rejection = results.find((result) => result.status === "rejected");
+    expect(rejection?.status === "rejected" && rejection.reason).toBeInstanceOf(DomainError);
+    expect(rejection?.status === "rejected" && rejection.reason.code).toBe("CONFLICT");
+  });
+
+  it("allows only one concurrent pending invitation across opposite directions", async () => {
+    const { challenger, challenged } = await createPlayers();
+    const makeInvite = () => {
+      const em = requestEntityManager();
+      return new InviteFriend(
+        players,
+        new MikroOrmFriendChallengeRepository(em),
+        new MikroOrmTransaction(em),
+        () => new Date(),
+      );
+    };
+    const results = await Promise.allSettled([
+      makeInvite().execute(challenger.id, challenged.username),
+      makeInvite().execute(challenged.id, challenger.username),
     ]);
 
     expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);

@@ -14,16 +14,17 @@ export class ListFriendChallenges {
 
   async execute(playerId: string): Promise<FriendChallengeLists> {
     const [incoming, outgoing] = await Promise.all([
-      this.challenges.pendingForChallenged(playerId),
-      this.challenges.forChallenger(playerId),
+      this.challenges
+        .pendingForChallenged(playerId)
+        .then((challenges) =>
+          Promise.all(challenges.map((challenge) => friendChallengeView(challenge, this.players))),
+        ),
+      this.challenges
+        .forChallenger(playerId)
+        .then((challenges) =>
+          Promise.all(challenges.map((challenge) => friendChallengeView(challenge, this.players))),
+        ),
     ]);
-    return {
-      incoming: await Promise.all(
-        incoming.map((challenge) => friendChallengeView(challenge, this.players)),
-      ),
-      outgoing: await Promise.all(
-        outgoing.map((challenge) => friendChallengeView(challenge, this.players)),
-      ),
-    };
+    return { incoming, outgoing };
   }
 }

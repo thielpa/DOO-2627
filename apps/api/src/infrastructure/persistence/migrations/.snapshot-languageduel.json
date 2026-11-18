@@ -181,13 +181,13 @@
           "unique": false
         },
         {
-          "columnNames": ["challenger_player_id", "challenged_player_id"],
-          "composite": true,
+          "columnNames": [],
+          "composite": false,
           "constraint": false,
-          "keyName": "friend_challenge_pending_pair_unique",
+          "keyName": "friend_challenge_pending_unordered_pair_unique",
           "primary": false,
           "unique": true,
-          "where": "\"status\" = 'PENDING'"
+          "expression": "create unique index \"friend_challenge_pending_unordered_pair_unique\" on \"friend_challenge\" (least(\"challenger_player_id\", \"challenged_player_id\"), greatest(\"challenger_player_id\", \"challenged_player_id\")) where \"status\" = 'PENDING'"
         },
         {
           "columnNames": ["id"],
@@ -538,12 +538,13 @@
           "unique": true
         },
         {
-          "columnNames": ["username"],
+          "columnNames": [],
           "composite": false,
-          "constraint": true,
-          "keyName": "player_username_unique",
+          "constraint": false,
+          "keyName": "player_username_lower_unique",
           "primary": false,
-          "unique": true
+          "unique": true,
+          "expression": "create unique index \"player_username_lower_unique\" on \"player\" (lower(\"username\"))"
         }
       ],
       "checks": [],

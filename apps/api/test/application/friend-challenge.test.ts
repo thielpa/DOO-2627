@@ -46,7 +46,7 @@ async function seedPlayers(players: InMemoryPlayerRepository) {
 }
 
 describe("friend challenge use cases", () => {
-  it("invites a Player by exact username", async () => {
+  it("invites a Player by case-insensitive username", async () => {
     const ctx = setup();
     await seedPlayers(ctx.players);
 
@@ -104,6 +104,17 @@ describe("friend challenge use cases", () => {
     await ctx.decline.execute(pending.id, challenged.id);
 
     expect((await ctx.invite.execute(challenger.id, "bob")).status).toBe("PENDING");
+  });
+
+  it("rejects a reverse invitation while the original invitation is pending", async () => {
+    const ctx = setup();
+    await seedPlayers(ctx.players);
+    await ctx.invite.execute(challenger.id, "bob");
+
+    await expect(ctx.invite.execute(challenged.id, "alice")).rejects.toMatchObject({
+      code: "CONFLICT",
+      message: "A pending challenge already exists",
+    });
   });
 
   it("accepts only by the challenged Player and starts a SOLO_FRIEND Match", async () => {

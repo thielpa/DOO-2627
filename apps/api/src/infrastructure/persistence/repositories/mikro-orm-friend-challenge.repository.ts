@@ -2,7 +2,8 @@ import { LockMode, UniqueConstraintViolationException } from "@mikro-orm/core";
 import type { EntityManager } from "@mikro-orm/postgresql";
 import { DomainError, FriendChallenge, type FriendChallengeRepository } from "../../../domain";
 
-export const PENDING_FRIEND_CHALLENGE_UNIQUE_INDEX = "friend_challenge_pending_pair_unique";
+export const PENDING_FRIEND_CHALLENGE_UNIQUE_INDEX =
+  "friend_challenge_pending_unordered_pair_unique";
 
 export class MikroOrmFriendChallengeRepository implements FriendChallengeRepository {
   constructor(private readonly em: EntityManager) {}
@@ -22,8 +23,16 @@ export class MikroOrmFriendChallengeRepository implements FriendChallengeReposit
     challengedPlayerId: string,
   ): Promise<FriendChallenge | null> {
     return this.em.findOne(FriendChallenge, {
-      _challengerPlayerId: challengerPlayerId,
-      _challengedPlayerId: challengedPlayerId,
+      $or: [
+        {
+          _challengerPlayerId: challengerPlayerId,
+          _challengedPlayerId: challengedPlayerId,
+        },
+        {
+          _challengerPlayerId: challengedPlayerId,
+          _challengedPlayerId: challengerPlayerId,
+        },
+      ],
       _status: "PENDING",
     } as object);
   }

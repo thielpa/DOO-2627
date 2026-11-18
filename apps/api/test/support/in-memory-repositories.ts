@@ -18,6 +18,7 @@ import type {
   Session,
   SessionRepository,
 } from "../../src/domain";
+import { DomainError } from "../../src/domain";
 
 export class InMemoryCategoryRepository implements CategoryRepository {
   constructor(private readonly categories: Category[]) {}
@@ -103,10 +104,19 @@ export class InMemoryPlayerRepository implements PlayerRepository {
   }
 
   async byUsername(username: string) {
-    return [...this.players.values()].find((player) => player.username === username) ?? null;
+    const normalizedUsername = username.toLowerCase();
+    return (
+      [...this.players.values()].find(
+        (player) => player.username.toLowerCase() === normalizedUsername,
+      ) ?? null
+    );
   }
 
   async save(player: Player) {
+    const existing = await this.byUsername(player.username);
+    if (existing && existing.id !== player.id) {
+      throw new DomainError("CONFLICT", "A Player with this username already exists");
+    }
     this.players.set(player.id, player);
   }
 }
@@ -138,8 +148,10 @@ export class InMemoryFriendChallengeRepository implements FriendChallengeReposit
     return (
       [...this.challenges.values()].find(
         (challenge) =>
-          challenge.challengerPlayerId === challengerPlayerId &&
-          challenge.challengedPlayerId === challengedPlayerId &&
+          ((challenge.challengerPlayerId === challengerPlayerId &&
+            challenge.challengedPlayerId === challengedPlayerId) ||
+            (challenge.challengerPlayerId === challengedPlayerId &&
+              challenge.challengedPlayerId === challengerPlayerId)) &&
           challenge.status === "PENDING",
       ) ?? null
     );

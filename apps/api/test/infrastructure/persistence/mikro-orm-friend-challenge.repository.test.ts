@@ -50,8 +50,16 @@ describe("MikroOrmFriendChallengeRepository", () => {
       { _id: challenge.id },
       { where: { _id: challenge.id }, options: { lockMode: LockMode.PESSIMISTIC_WRITE } },
       {
-        _challengerPlayerId: challenge.challengerPlayerId,
-        _challengedPlayerId: challenge.challengedPlayerId,
+        $or: [
+          {
+            _challengerPlayerId: challenge.challengerPlayerId,
+            _challengedPlayerId: challenge.challengedPlayerId,
+          },
+          {
+            _challengerPlayerId: challenge.challengedPlayerId,
+            _challengedPlayerId: challenge.challengerPlayerId,
+          },
+        ],
         _status: "PENDING",
       },
       {
@@ -142,6 +150,7 @@ describe("FriendChallenge persistence schema", () => {
       name?: string;
       properties?: string[];
       where?: Record<string, unknown>;
+      expression?: string;
     }>;
 
     expect(FriendChallengeSchema.meta.tableName).toBe("friend_challenge");
@@ -165,8 +174,8 @@ describe("FriendChallenge persistence schema", () => {
     expect(uniques).toEqual([
       {
         name: PENDING_FRIEND_CHALLENGE_UNIQUE_INDEX,
-        properties: ["_challengerPlayerId", "_challengedPlayerId"],
-        where: { _status: "PENDING" },
+        expression:
+          'create unique index "friend_challenge_pending_unordered_pair_unique" on "friend_challenge" (least("challenger_player_id", "challenged_player_id"), greatest("challenger_player_id", "challenged_player_id")) where "status" = \'PENDING\'',
       },
     ]);
   });

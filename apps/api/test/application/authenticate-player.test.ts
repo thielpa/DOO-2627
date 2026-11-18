@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { AuthenticatePlayer, AuthenticationError } from "../../src/application/authenticate-player";
 import type { PasswordHasher } from "../../src/application/password-hasher";
-import { Player } from "../../src/domain";
+import { DomainError, Player } from "../../src/domain";
 import { InMemoryPlayerRepository } from "../support/in-memory-repositories";
 
 function fakeHasher(
@@ -54,6 +54,50 @@ describe("AuthenticatePlayer", () => {
     expect(result).not.toHaveProperty("passwordHash");
     expect(hashed).toEqual([]);
     expect(verified).toEqual([{ plaintext: "secret", hash: "argon:secret" }]);
+  });
+
+  it("treats username casing as equivalent and preserves the stored display spelling", async () => {
+    const players = new InMemoryPlayerRepository();
+    await players.save(Player.create("player-1", "Alice", "argon:secret"));
+    const { hasher } = fakeHasher();
+    const authenticate = new AuthenticatePlayer(players, hasher);
+
+    await expect(authenticate.execute({ username: "alice", password: "secret" })).resolves.toEqual({
+      id: "player-1",
+      username: "Alice",
+    });
+  });
+
+  it("uses the saved account if a concurrent first login wins username creation", async () => {
+    const racedPlayer = Player.create("player-1", "Alice", "argon:secret");
+    const players = {
+      byUsername: async () => racedPlayer,
+      byId: async () => null,
+      save: async () => {
+        throw new DomainError("CONFLICT", "A Player with this username already exists");
+      },
+    };
+    const { hasher } = fakeHasher();
+
+    await expect(
+      new AuthenticatePlayer(players, hasher).execute({ username: "alice", password: "secret" }),
+    ).resolves.toEqual({ id: "player-1", username: "Alice" });
+  });
+
+  it("does not authenticate with a different password after a concurrent username creation", async () => {
+    const racedPlayer = Player.create("player-1", "Alice", "argon:secret");
+    const players = {
+      byUsername: async () => racedPlayer,
+      byId: async () => null,
+      save: async () => {
+        throw new DomainError("CONFLICT", "A Player with this username already exists");
+      },
+    };
+    const { hasher } = fakeHasher();
+
+    await expect(
+      new AuthenticatePlayer(players, hasher).execute({ username: "alice", password: "wrong" }),
+    ).rejects.toBeInstanceOf(AuthenticationError);
   });
 
   it("rejects an incorrect password with a generic authentication error", async () => {

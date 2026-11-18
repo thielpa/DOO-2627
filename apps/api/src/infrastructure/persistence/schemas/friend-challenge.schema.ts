@@ -23,9 +23,9 @@ export const FriendChallengeSchema = privateStateSchema(FriendChallenge, {
   ],
   uniques: [
     {
-      name: "friend_challenge_pending_pair_unique",
-      properties: ["_challengerPlayerId", "_challengedPlayerId"],
-      where: { _status: "PENDING" },
+      name: "friend_challenge_pending_unordered_pair_unique",
+      expression:
+        'create unique index "friend_challenge_pending_unordered_pair_unique" on "friend_challenge" (least("challenger_player_id", "challenged_player_id"), greatest("challenger_player_id", "challenged_player_id")) where "status" = \'PENDING\'',
     },
   ],
 });
