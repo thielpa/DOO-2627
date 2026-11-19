@@ -6,8 +6,9 @@ import { EntitySchema, type EntitySchemaMetadata } from "@mikro-orm/core";
  * MikroORM reads and writes those fields directly, without calling domain methods.
  */
 export function privateStateSchema<T>(
-  // biome-ignore lint/suspicious/noExplicitAny: domain constructors have arbitrary parameters
-  entity: new (...args: any[]) => T,
+  // Only the class is needed, not a callable constructor, so domain classes may keep theirs
+  // private (e.g. behind a factory like `Match.create`).
+  entity: { prototype: T },
   meta: Omit<EntitySchemaMetadata<Record<string, unknown>>, "class" | "name">,
 ): EntitySchema<T> {
   return new EntitySchema({ class: entity, ...meta } as unknown as EntitySchemaMetadata<T>);

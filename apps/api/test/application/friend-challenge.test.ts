@@ -3,7 +3,7 @@ import { AcceptFriendChallenge } from "../../src/application/accept-friend-chall
 import { DeclineFriendChallenge } from "../../src/application/decline-friend-challenge";
 import { InviteFriend } from "../../src/application/invite-friend";
 import { ListFriendChallenges } from "../../src/application/list-friend-challenges";
-import { Player } from "../../src/domain";
+import { DEFAULT_TURN_TIMEOUT_MS, Player } from "../../src/domain";
 import {
   InMemoryFriendChallengeRepository,
   InMemoryMatchRepository,
@@ -22,7 +22,14 @@ function setup() {
   const transaction = { run: <T>(work: () => Promise<T>) => work() };
   const invite = new InviteFriend(players, challenges, transaction, () => now);
   const list = new ListFriendChallenges(challenges, players);
-  const accept = new AcceptFriendChallenge(challenges, players, matches, transaction, () => now);
+  const accept = new AcceptFriendChallenge(
+    challenges,
+    players,
+    matches,
+    transaction,
+    () => now,
+    DEFAULT_TURN_TIMEOUT_MS,
+  );
   const decline = new DeclineFriendChallenge(challenges, players, transaction, () => now);
 
   return {

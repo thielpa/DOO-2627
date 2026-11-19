@@ -4,7 +4,7 @@ import { AcceptFriendChallenge } from "../../src/application/accept-friend-chall
 import { DeclineFriendChallenge } from "../../src/application/decline-friend-challenge";
 import { InviteFriend } from "../../src/application/invite-friend";
 import type { FriendChallengeRepository, Match, MatchRepository } from "../../src/domain";
-import { DomainError, FriendChallenge, Player } from "../../src/domain";
+import { DEFAULT_TURN_TIMEOUT_MS, DomainError, FriendChallenge, Player } from "../../src/domain";
 import { MikroOrmTransaction } from "../../src/infrastructure/persistence/mikro-orm-transaction";
 import { MikroOrmFriendChallengeRepository } from "../../src/infrastructure/persistence/repositories/mikro-orm-friend-challenge.repository";
 import { FriendChallengeSchema } from "../../src/infrastructure/persistence/schemas/friend-challenge.schema";
@@ -89,7 +89,9 @@ describe("FriendChallenge PostgreSQL concurrency", () => {
   ): MatchRepository {
     return {
       byId: async () => null,
+      byIdForUpdate: async () => null,
       forPlayer: async () => [],
+      findIdsSatisfying: async () => [],
       save: async (match: Match) => {
         await em
           .getConnection()
@@ -115,6 +117,7 @@ describe("FriendChallenge PostgreSQL concurrency", () => {
       matchRepository(em, testRunId, failAfterInsert),
       new MikroOrmTransaction(em),
       () => new Date("2026-11-15T13:00:00Z"),
+      DEFAULT_TURN_TIMEOUT_MS,
     );
   }
 
@@ -251,6 +254,7 @@ describe("FriendChallenge PostgreSQL concurrency", () => {
       matchRepository(em, testRunId),
       new MikroOrmTransaction(em),
       () => new Date("2026-11-15T13:00:00Z"),
+      DEFAULT_TURN_TIMEOUT_MS,
     );
     await expect(useCase.execute(challenge.id, challenged.id)).rejects.toThrow(
       "simulated challenge persistence failure",

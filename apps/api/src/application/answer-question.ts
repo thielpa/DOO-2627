@@ -1,4 +1,5 @@
 import { DomainError, type MatchRepository, type QuestionRepository } from "../domain";
+import type { EventDispatcher } from "./event-dispatcher";
 import type { Transaction } from "./transaction";
 
 export interface AnswerResult {
@@ -11,6 +12,7 @@ export class AnswerQuestion {
     private readonly matches: MatchRepository,
     private readonly questions: QuestionRepository,
     private readonly transaction: Transaction,
+    private readonly events: EventDispatcher,
     private readonly now: () => Date,
   ) {}
 
@@ -21,7 +23,7 @@ export class AnswerQuestion {
     optionId: string | null,
   ): Promise<AnswerResult> {
     return this.transaction.run(async () => {
-      const match = await this.matches.byId(matchId);
+      const match = await this.matches.byIdForUpdate(matchId);
       if (!match) throw new DomainError("NOT_FOUND", "Match not found");
       const [question] = await this.questions.byIds([questionId]);
       if (!question) throw new DomainError("NOT_FOUND", "Question not found");
@@ -29,6 +31,8 @@ export class AnswerQuestion {
       // The match measures the time needed itself, so clients cannot report a faster answer.
       const answer = match.answer(playerId, question, optionId, this.now());
       await this.matches.save(match);
+      // Answering may pass the turn or complete the match.
+      await this.events.dispatch(match.pullEvents());
 
       return { isCorrect: answer.isCorrect, correctOptionId: question.correctOptionId() };
     });

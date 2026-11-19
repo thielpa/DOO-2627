@@ -1,12 +1,15 @@
 import type { Match } from "../domain";
 
-export type MatchResult = "WON" | "LOST" | "DRAW";
+/** NO_WINNER: the match expired before anyone answered a question. */
+export type MatchResult = "WON" | "LOST" | "DRAW" | "NO_WINNER";
 
 export interface MatchSummary {
   id: string;
   status: Match["status"];
   startedAt: string | null;
   isYourTurn: boolean;
+  /** Until when the player whose turn it is has to play; null once the match is over. */
+  turnDeadline: string | null;
   yourScore: number;
   opponentScore: number;
   result: MatchResult | null;
@@ -19,6 +22,7 @@ export function summarize(match: Match, viewerId: string): MatchSummary {
     status: match.status,
     startedAt: match.startedAt?.toISOString() ?? null,
     isYourTurn: match.whoseTurn() === viewerId,
+    turnDeadline: match.turnDeadline?.toISOString() ?? null,
     yourScore: match.scoreOf(viewerId),
     opponentScore: match.visibleOpponentScore(viewerId),
     result: resultFor(match, viewerId),
@@ -26,8 +30,8 @@ export function summarize(match: Match, viewerId: string): MatchSummary {
 }
 
 function resultFor(match: Match, viewerId: string): MatchResult | null {
-  if (match.status !== "COMPLETED") return null;
+  if (!match.isOver()) return null;
   const winner = match.winner();
-  if (winner === null) return "DRAW";
+  if (winner === null) return match.status === "EXPIRED" ? "NO_WINNER" : "DRAW";
   return winner === viewerId ? "WON" : "LOST";
 }

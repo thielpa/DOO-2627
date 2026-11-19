@@ -21,19 +21,19 @@ export class ShowQuestion {
 
   execute(matchId: string, playerId: string): Promise<QuestionView> {
     return this.transaction.run(async () => {
-      const match = await this.matches.byId(matchId);
+      const match = await this.matches.byIdForUpdate(matchId);
       if (!match) throw new DomainError("NOT_FOUND", "Match not found");
       const now = this.now();
-      const shown = match.showQuestion(playerId, now);
+      const [question] = await this.questions.byIds([match.questionToShow(playerId, now)]);
+      if (!question) throw new DomainError("NOT_FOUND", "Question not found");
+      const shownAt = match.showQuestion(playerId, question, now);
       await this.matches.save(match);
 
-      const [question] = await this.questions.byIds([shown.questionId]);
-      if (!question) throw new DomainError("NOT_FOUND", "Question not found");
       return {
         id: question.id,
         text: question.text,
         timeLimitMs: question.timeLimitMs,
-        remainingMs: question.remainingMs(shown.shownAt, now),
+        remainingMs: question.remainingMs(shownAt, now),
         options: question.options.map(({ id, text }) => ({ id, text })),
       };
     });

@@ -3,9 +3,11 @@ import { Card } from "primereact/card";
 import { ProgressBar } from "primereact/progressbar";
 import { useEffect, useRef, useState } from "react";
 import type { QuestionView } from "../../lib/api";
+import { type RoundPosition, RoundProgress } from "./round-progress";
 
 interface Props {
   question: QuestionView;
+  position: RoundPosition;
   disabled: boolean;
   /** `optionId` is null when the time ran out. The server measures the time needed. */
   onAnswer: (optionId: string | null) => void;
@@ -13,7 +15,7 @@ interface Props {
 
 const TICK_MS = 100;
 
-export function QuestionCard({ question, disabled, onAnswer }: Props) {
+export function QuestionCard({ question, position, disabled, onAnswer }: Props) {
   // The clock may already be running on the server, e.g. after a reload.
   const startedAtMs = useRef(performance.now() - (question.timeLimitMs - question.remainingMs));
   const hasAnsweredRef = useRef(false);
@@ -43,6 +45,7 @@ export function QuestionCard({ question, disabled, onAnswer }: Props) {
 
   return (
     <Card title={question.text}>
+      <RoundProgress position={position} isAnswered={false} />
       <ProgressBar value={remainingPercent} showValue={false} style={{ height: "0.5rem" }} />
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
         {question.options.map((option) => (

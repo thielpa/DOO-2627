@@ -2,20 +2,28 @@ import { beforeEach, describe, expect, it } from "bun:test";
 import type {
   AnswerResult,
   LobbyView,
+  MatchSummary,
   MatchView,
   QuestionView,
   SearchResult,
+  UseCases,
 } from "../src/application";
+import { type MatchEvent, OverdueMatch, QUESTIONS_PER_ROUND } from "../src/domain";
 import { createApp } from "../src/http/app";
 import { categories, questions } from "./support/fixtures";
-import { inMemoryUseCases } from "./support/in-memory-repositories";
+import { type InMemoryMatchRepository, inMemoryUseCases } from "./support/in-memory-repositories";
 
 const alice = "00000000-0000-4000-8000-00000000000a";
 const bob = "00000000-0000-4000-8000-00000000000b";
 const carol = "00000000-0000-4000-8000-00000000000c";
 
+const TURN_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+
 let app: ReturnType<typeof createApp>;
 const sessionCookies = new Map<string, string>();
+let useCases: UseCases;
+let matches: InMemoryMatchRepository;
+let events: MatchEvent[];
 // Fake clock, so tests can let time pass.
 let now: Date;
 const advance = (ms: number) => {
@@ -25,7 +33,11 @@ const advance = (ms: number) => {
 beforeEach(() => {
   now = new Date("2026-01-01T00:00:00Z");
   sessionCookies.clear();
-  app = createApp({ useCases: inMemoryUseCases(categories, questions, () => now) });
+  ({ useCases, matches, events } = inMemoryUseCases(categories, questions, {
+    now: () => now,
+    turnTimeoutMs: TURN_TIMEOUT_MS,
+  }));
+  app = createApp({ useCases });
 });
 
 async function call(player: string | null, method: string, path: string, body?: unknown) {
@@ -57,6 +69,11 @@ async function call(player: string | null, method: string, path: string, body?: 
 
 async function json<T>(res: Response | Promise<Response>): Promise<T> {
   return (await res).json() as Promise<T>;
+}
+
+/** The id the server gave the test player when it logged in. */
+async function idOf(player: string): Promise<string> {
+  return (await json<{ id: string }>(call(player, "GET", "/auth/me"))).id;
 }
 
 async function startMatch(): Promise<string> {
@@ -143,19 +160,50 @@ describe("match", () => {
     }
 
     // Every round always picks the same category, but no question is asked twice.
-    expect(askedByAlice).toHaveLength(3);
-    expect(new Set(askedByAlice).size).toBe(3);
+    const total = 3 * QUESTIONS_PER_ROUND;
+    expect(askedByAlice).toHaveLength(total);
+    expect(new Set(askedByAlice).size).toBe(total);
 
     const aliceView = await json<MatchView>(call(alice, "GET", `/api/matches/${matchId}`));
     const bobView = await json<MatchView>(call(bob, "GET", `/api/matches/${matchId}`));
-    expect(aliceView).toMatchObject({ status: "COMPLETED", result: "WON", yourScore: 3 });
+    expect(aliceView).toMatchObject({ status: "COMPLETED", result: "WON", yourScore: total });
     expect(aliceView.opponentScore).toBe(0);
-    expect(bobView).toMatchObject({ status: "COMPLETED", result: "LOST", opponentScore: 3 });
+    expect(aliceView.turnDeadline).toBeNull();
+    expect(bobView).toMatchObject({ status: "COMPLETED", result: "LOST", opponentScore: total });
     expect(aliceView.rounds.map((r) => r.status)).toEqual(["COMPLETED", "COMPLETED", "COMPLETED"]);
 
     const list = await json<MatchView[]>(call(bob, "GET", "/api/matches"));
     expect(list).toHaveLength(1);
     expect(list[0]).toMatchObject({ id: matchId, result: "LOST" });
+
+    // The turn went back and forth: alice→bob (R1), bob→alice (R2), alice→bob (R3).
+    expect(events.map((e) => e.type)).toEqual([
+      "TurnPassed",
+      "TurnPassed",
+      "TurnPassed",
+      "MatchCompleted",
+    ]);
+    expect(events.at(-1)).toMatchObject({ matchId, winnerId: await idOf(alice) });
+  });
+
+  it("shows the progress within the round", async () => {
+    const matchId = await startMatch();
+    await call(alice, "POST", `/api/matches/${matchId}/category`, { categoryId: "food" });
+    const progress = async () =>
+      (await json<MatchView>(call(alice, "GET", `/api/matches/${matchId}`))).current;
+
+    expect(await progress()).toMatchObject({
+      answeredCount: 0,
+      questionCount: QUESTIONS_PER_ROUND,
+    });
+    const question = await json<QuestionView>(
+      call(alice, "POST", `/api/matches/${matchId}/questions/next`),
+    );
+    await call(alice, "POST", `/api/matches/${matchId}/answers`, {
+      questionId: question.id,
+      optionId: null,
+    });
+    expect(await progress()).toMatchObject({ answeredCount: 1, hasQuestionToAnswer: true });
   });
 
   it("hides the opponent's round result until you finished the round", async () => {
@@ -269,5 +317,131 @@ describe("match", () => {
     const res = await call(alice, "POST", `/api/matches/${matchId}/answers`, { questionId: "x" });
 
     expect(res.status).toBe(400);
+  });
+});
+
+describe("match expiry", () => {
+  const summaryOf = async (player: string, matchId: string) =>
+    (await json<MatchSummary[]>(call(player, "GET", "/api/matches"))).find((m) => m.id === matchId);
+
+  it("tells the players until when the current turn has to be played", async () => {
+    const matchId = await startMatch();
+    const startedAt = now.getTime();
+
+    const view = await json<MatchView>(call(bob, "GET", `/api/matches/${matchId}`));
+    expect(view.turnDeadline).toBe(new Date(startedAt + TURN_TIMEOUT_MS).toISOString());
+
+    advance(60_000);
+    await playTurn(matchId, alice, true);
+    const afterTurn = await json<MatchView>(call(bob, "GET", `/api/matches/${matchId}`));
+    expect(new Date(afterTurn.turnDeadline ?? 0).getTime()).toBeGreaterThan(
+      startedAt + TURN_TIMEOUT_MS,
+    );
+  });
+
+  it("rejects moves after the deadline, even before the match is expired", async () => {
+    const matchId = await startMatch();
+    advance(TURN_TIMEOUT_MS);
+
+    const res = await call(alice, "POST", `/api/matches/${matchId}/category`, {
+      categoryId: "food",
+    });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "The turn deadline has passed" });
+  });
+
+  it("lets the player who missed the deadline lose", async () => {
+    const matchId = await startMatch();
+    await playTurn(matchId, alice, false);
+    advance(TURN_TIMEOUT_MS);
+
+    expect(await useCases.expireOverdueMatches.execute()).toBe(1);
+
+    expect(await summaryOf(alice, matchId)).toMatchObject({ status: "EXPIRED", result: "WON" });
+    expect(await summaryOf(bob, matchId)).toMatchObject({
+      status: "EXPIRED",
+      result: "LOST",
+      isYourTurn: false,
+      turnDeadline: null,
+    });
+    expect(events.at(-1)).toMatchObject({
+      type: "MatchExpired",
+      missedByPlayerId: await idOf(bob),
+      winnerId: await idOf(alice),
+    });
+  });
+
+  it("expires mid-round, when the player stopped halfway through their questions", async () => {
+    const matchId = await startMatch();
+    await call(alice, "POST", `/api/matches/${matchId}/category`, { categoryId: "food" });
+    const question = await json<QuestionView>(
+      call(alice, "POST", `/api/matches/${matchId}/questions/next`),
+    );
+    await call(alice, "POST", `/api/matches/${matchId}/answers`, {
+      questionId: question.id,
+      optionId: `${question.id}-ok`,
+    });
+    advance(TURN_TIMEOUT_MS);
+
+    await useCases.expireOverdueMatches.execute();
+
+    // Alice played but did not finish her turn: she loses although she leads.
+    expect(await summaryOf(alice, matchId)).toMatchObject({ result: "LOST", yourScore: 1 });
+    const bobView = await json<MatchView>(call(bob, "GET", `/api/matches/${matchId}`));
+    expect(bobView).toMatchObject({ result: "WON", opponentScore: 1, current: null });
+  });
+
+  it("has no winner when nobody played", async () => {
+    const matchId = await startMatch();
+    advance(TURN_TIMEOUT_MS);
+
+    await useCases.expireOverdueMatches.execute();
+
+    expect(await summaryOf(alice, matchId)).toMatchObject({ result: "NO_WINNER" });
+    expect(await summaryOf(bob, matchId)).toMatchObject({ result: "NO_WINNER" });
+    expect(events.at(-1)).toMatchObject({ type: "MatchExpired", winnerId: null });
+  });
+
+  it("does not expire a match whose player moved in time", async () => {
+    const matchId = await startMatch();
+    // playTurn takes one second per answer, so this ends shortly before the deadline.
+    advance(TURN_TIMEOUT_MS - 10_000);
+    await playTurn(matchId, alice, true);
+    advance(10_000);
+
+    expect(await useCases.expireOverdueMatches.execute()).toBe(0);
+    expect(await summaryOf(bob, matchId)).toMatchObject({ status: "STARTED", isYourTurn: true });
+  });
+
+  it("does not expire a completed match", async () => {
+    const matchId = await startMatch();
+    for (const player of [alice, bob, bob, alice, alice, bob])
+      await playTurn(matchId, player, true);
+    // Well past any deadline, but within the session lifetime.
+    advance(2 * TURN_TIMEOUT_MS);
+
+    expect(await useCases.expireOverdueMatches.execute()).toBe(0);
+    expect(await summaryOf(alice, matchId)).toMatchObject({ status: "COMPLETED", result: "DRAW" });
+  });
+
+  it("expires a match only once", async () => {
+    await startMatch();
+    advance(TURN_TIMEOUT_MS);
+
+    expect(await useCases.expireOverdueMatches.execute()).toBe(1);
+    advance(TURN_TIMEOUT_MS);
+    expect(await useCases.expireOverdueMatches.execute()).toBe(0);
+    expect(events.filter((e) => e.type === "MatchExpired")).toHaveLength(1);
+  });
+
+  it("only looks at overdue matches", async () => {
+    const overdueId = await startMatch();
+    advance(TURN_TIMEOUT_MS);
+    await call(carol, "POST", "/api/matchmaking/search");
+    const dave = "00000000-0000-4000-8000-00000000000d";
+    await call(dave, "POST", "/api/matchmaking/search");
+
+    expect(await matches.findIdsSatisfying(new OverdueMatch(now))).toEqual([overdueId]);
   });
 });

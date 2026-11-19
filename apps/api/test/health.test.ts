@@ -6,7 +6,7 @@ import { inMemoryUseCases } from "./support/in-memory-repositories";
 
 describe("GET /api/health", () => {
   it("returns ok", async () => {
-    const res = await createApp({ useCases: inMemoryUseCases() }).request("/api/health");
+    const res = await createApp({ useCases: inMemoryUseCases().useCases }).request("/api/health");
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ status: "ok" });

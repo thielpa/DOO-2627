@@ -11,8 +11,11 @@ export async function createStartedMatch(
   players: [string, string],
   mode: GameMode,
   startedAt: Date,
+  turnTimeoutMs: number,
 ): Promise<Match> {
-  const match = MatchAggregate.create(crypto.randomUUID(), players, mode, "EASY");
+  const match = MatchAggregate.create(crypto.randomUUID(), players, mode, "EASY", {
+    turnTimeoutMs,
+  });
   match.start(startedAt);
   await matches.save(match);
   return match;

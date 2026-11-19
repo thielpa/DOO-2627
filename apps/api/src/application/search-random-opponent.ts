@@ -14,6 +14,7 @@ export class SearchRandomOpponent {
     private readonly matches: MatchRepository,
     private readonly transaction: Transaction,
     private readonly now: () => Date,
+    private readonly turnTimeoutMs: number,
   ) {}
 
   execute(playerId: string): Promise<SearchResult> {
@@ -34,7 +35,13 @@ export class SearchRandomOpponent {
 
       openLobby.join(playerId);
       const [first, second] = openLobby.players as [string, string];
-      const match = await createStartedMatch(this.matches, [first, second], GAME_MODE, this.now());
+      const match = await createStartedMatch(
+        this.matches,
+        [first, second],
+        GAME_MODE,
+        this.now(),
+        this.turnTimeoutMs,
+      );
       openLobby.start(match.id);
       await this.lobbies.save(openLobby);
       return { status: "matched", matchId: match.id };

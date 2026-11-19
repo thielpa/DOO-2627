@@ -65,17 +65,16 @@ export class Round {
     return this.hasAnsweredAll(playerId);
   }
 
+  answeredCount(playerId: string): number {
+    return this._answers.filter((a) => a.playerId === playerId).length;
+  }
+
   nextQuestionIdFor(playerId: string): string | null {
     return this._questionIds.find((questionId) => !this.hasAnswered(playerId, questionId)) ?? null;
   }
 
   correctCount(playerId: string): number {
     return this._answers.filter((a) => a.playerId === playerId && a.isCorrect).length;
-  }
-
-  /** The opponent's correct answers as the viewer may see them; null while not revealed. */
-  visibleCorrectCountOf(opponentId: string, viewerId: string): number | null {
-    return this.isRevealedTo(viewerId) ? this.correctCount(opponentId) : null;
   }
 
   start(): void {

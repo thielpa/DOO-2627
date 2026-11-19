@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { MatchSummary, MatchView } from "./lib/api";
 import { createAppRouter } from "./router";
@@ -44,7 +44,10 @@ function renderAt(path: string, authenticated = true) {
   }
   const router = createAppRouter({ history: createMemoryHistory({ initialEntries: [path] }) });
   render(
-    <QueryClientProvider client={new QueryClient()}>
+    // No automatic retries, so error states show right away.
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
       <RouterProvider router={router} />
     </QueryClientProvider>,
   );
@@ -55,6 +58,7 @@ const summary: MatchSummary = {
   status: "STARTED",
   startedAt: "2026-11-05T10:00:00.000Z",
   isYourTurn: true,
+  turnDeadline: new Date(Date.now() + 5 * 60 * 60 * 1000 + 60_000).toISOString(),
   yourScore: 2,
   opponentScore: 1,
   result: null,
@@ -342,6 +346,8 @@ it("lets the chooser pick a category", async () => {
         isPlayerChooser: true,
         categories: [{ id: "food", name: "Food" }],
         hasQuestionToAnswer: false,
+        answeredCount: 0,
+        questionCount: 3,
       },
     }),
     "POST /api/matches/m1/category": () => null,
@@ -369,6 +375,8 @@ it("reveals the correct answer after answering", async () => {
         isPlayerChooser: true,
         categories: null,
         hasQuestionToAnswer: true,
+        answeredCount: 0,
+        questionCount: 3,
       },
     }),
     "POST /api/matches/m1/questions/next": () => question,
@@ -379,6 +387,7 @@ it("reveals the correct answer after answering", async () => {
   fireEvent.click(await screen.findByRole("button", { name: "butter" }));
 
   expect(await screen.findByText("Wrong")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Next question" })).toBeInTheDocument();
   // Only the choice is sent; the server measures the time needed.
   expect(fetch).toHaveBeenCalledWith(
     expect.stringContaining("/api/matches/m1/answers"),
@@ -399,6 +408,8 @@ it("shows the scores while waiting for the opponent", async () => {
         isPlayerChooser: true,
         categories: null,
         hasQuestionToAnswer: false,
+        answeredCount: 0,
+        questionCount: 3,
       },
     }),
   });
@@ -406,4 +417,121 @@ it("shows the scores while waiting for the opponent", async () => {
 
   expect(await screen.findByText("Waiting for your opponent…")).toBeInTheDocument();
   expect(screen.getByRole("table")).toBeInTheDocument();
+});
+
+const finished = (id: string, status: "COMPLETED" | "EXPIRED", result: MatchSummary["result"]) => ({
+  ...summary,
+  id,
+  status,
+  result,
+  isYourTurn: false,
+  turnDeadline: null,
+});
+
+it("groups my matches into running and finished, with the time left and expiry tags", async () => {
+  stubApi({
+    "GET /api/matches": () => [
+      finished("m2", "EXPIRED", "WON"),
+      finished("m3", "EXPIRED", "NO_WINNER"),
+      { ...summary, id: "m4", isYourTurn: false },
+      summary,
+      finished("m5", "COMPLETED", "DRAW"),
+    ],
+  });
+  renderAt("/");
+
+  const running = await screen.findByRole("heading", { name: "Running" });
+  const runningItems = within(running.parentElement as HTMLElement).getAllByRole("link");
+  // Your turn first.
+  expect(runningItems.map((item) => item.textContent)).toEqual([
+    expect.stringContaining("Your turn"),
+    expect.stringContaining("Waiting for opponent"),
+  ]);
+  expect(runningItems[0]).toHaveTextContent("5 h left");
+
+  const finishedSection = screen.getByRole("heading", { name: "Finished" }).parentElement;
+  expect(within(finishedSection as HTMLElement).getByText("Won (timeout)")).toBeInTheDocument();
+  expect(within(finishedSection as HTMLElement).getByText("Expired")).toBeInTheDocument();
+  expect(within(finishedSection as HTMLElement).getByText("Draw")).toBeInTheDocument();
+});
+
+it("lets me retry when my matches could not be loaded", async () => {
+  let isApiDown = true;
+  stubApi({
+    "GET /api/matches": () =>
+      isApiDown ? Response.json({ error: "Database unavailable" }, { status: 500 }) : [summary],
+  });
+  renderAt("/");
+
+  expect(await screen.findByText("Database unavailable")).toBeInTheDocument();
+  isApiDown = false;
+  fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+  expect(await screen.findByText("Your turn")).toBeInTheDocument();
+});
+
+it("shows the progress within the round and finishes it with the last question", async () => {
+  stubApi({
+    "GET /api/matches/m1": () => ({
+      ...summary,
+      rounds,
+      current: {
+        roundNumber: 2,
+        isPlayerChooser: false,
+        categories: null,
+        hasQuestionToAnswer: true,
+        answeredCount: 2,
+        questionCount: 3,
+      },
+    }),
+    "POST /api/matches/m1/questions/next": () => question,
+    "POST /api/matches/m1/answers": () => ({ isCorrect: true, correctOptionId: "o1" }),
+  });
+  renderAt("/matches/m1");
+
+  expect(await screen.findByText("Round 2 · Question 3 of 3")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "bread" }));
+
+  expect(await screen.findByText("Correct!")).toBeInTheDocument();
+  expect(screen.getByText("Round 2 · Question 3 of 3")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument();
+});
+
+it("explains why an expired match was lost", async () => {
+  stubApi({
+    "GET /api/matches/m1": () => ({
+      ...finished("m1", "EXPIRED", "LOST"),
+      rounds,
+      current: null,
+    }),
+  });
+  renderAt("/matches/m1");
+
+  expect(await screen.findByText("You lost.")).toBeInTheDocument();
+  expect(screen.getByText("You did not play in time.")).toBeInTheDocument();
+  expect(screen.getByText("Lost (timeout)")).toBeInTheDocument();
+});
+
+it("shows the server's reason when a move is rejected", async () => {
+  stubApi({
+    "GET /api/matches/m1": () => ({
+      ...summary,
+      rounds,
+      current: {
+        roundNumber: 1,
+        isPlayerChooser: true,
+        categories: [{ id: "food", name: "Food" }],
+        hasQuestionToAnswer: false,
+        answeredCount: 0,
+        questionCount: 3,
+      },
+    }),
+    "POST /api/matches/m1/category": () =>
+      Response.json({ error: "The turn deadline has passed" }, { status: 409 }),
+  });
+  renderAt("/matches/m1");
+
+  fireEvent.click(await screen.findByRole("button", { name: "Food" }));
+
+  expect(await screen.findByText("The turn deadline has passed")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
 });

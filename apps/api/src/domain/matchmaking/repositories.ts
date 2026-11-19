@@ -10,7 +10,13 @@ export interface LobbyRepository {
   lockMatchmaking(mode: GameMode): Promise<void>;
   byId(id: string): Promise<Lobby | null>;
   /** The oldest searching lobby someone else opened. */
+  // TODO(specification): the rule "searching lobby of this mode, player not in it" is written in
+  // MikroOrmLobbyRepository.findOpenFor, InMemoryLobbyRepository.findOpenFor and the guards of
+  // Lobby.join. Extract it like OverdueMatch (docs/design.md, section 6.1).
   findOpenFor(mode: GameMode, excludingPlayerId: string): Promise<Lobby | null>;
+  // TODO(specification): the rule "searching lobby the player is in" is written in
+  // MikroOrmLobbyRepository.findSearchingBy and InMemoryLobbyRepository.findSearchingBy.
+  // Extract it like OverdueMatch (docs/design.md, section 6.1).
   findSearchingBy(playerId: string): Promise<Lobby | null>;
   save(lobby: Lobby): Promise<void>;
 }
