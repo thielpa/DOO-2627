@@ -283,6 +283,140 @@ The analysis follows Khononov.
 
 **Implementation status: open.**
 
+### 4.2 New question types
+
+> **"Players practise a language with different kinds of questions, not only by choosing one of
+> four options."**
+
+#### 4.2.1 Context
+
+Today every question is multiple choice: a text and four options, one of them correct. In the new
+scenario, more **answer kinds** are added:
+
+- **Multiple choice** (as today): choose one of the options.
+- **Typed answer:** type the translation; several spellings can be accepted.
+- **Word order:** put the given words in the right order to form a sentence.
+
+Timer, rounds, score and turn-based play **do not change**. A round can mix kinds.
+
+**Why this change is plausible.**
+
+- The product is about practising languages. Choosing from options trains recognition only;
+  typing and ordering words train active recall and grammar.
+- Language apps usually offer all of these, and more kinds follow (listening, matching pairs).
+
+**Parts of the system affected.**
+
+| Part                                           | Impact                                            |
+| ---------------------------------------------- | ------------------------------------------------- |
+| Catalog (`Question`, `AnswerOption`)           | High: the answer rules depend on the kind         |
+| Match (`Match.answer`, `PlayerAnswer`)         | Small: the given answer is no longer an option id |
+| Application (`ShowQuestion`, `AnswerQuestion`) | Medium: question view and solution per kind       |
+| Persistence, seed and HTTP API                 | Medium: new columns and answer body               |
+| Client (React Web App)                         | High: one input and feedback view per kind        |
+| Matchmaking, Gamification, Social, Account     | None                                              |
+
+**Situation before the change.**
+
+Every question is multiple (single) choice: a `Question` has exactly four
+`AnswerOption`s, one of them correct. The question decides whether an answer is correct:
+[`isCorrectAnswer`](../apps/api/src/domain/catalog/question.ts#L42-L53) checks that the chosen
+option is the correct one and that it was given within the time limit. The Match asks the question
+and does not look at the content of the answer. A given answer is the id of the chosen option
+(`optionId`). It is sent by the [client](../apps/web/src/components/match/question-card.tsx#L50-L60),
+passed through the API and the use case to
+[`Match.answer`](../apps/api/src/domain/match/match.ts#L206-L225), and stored in
+[`PlayerAnswer`](../apps/api/src/domain/match/player-answer.ts#L6). After answering, the client is
+told the id of the correct option.
+
+**Alternatives analysed.**
+
+- **A. Type field and conditionals.** `Question` gets a `type` and nullable fields per kind; every
+  place that needs the kind uses `switch (question.type)`.
+- **B. Answer kinds as objects (Strategy).** `Question` _has_ an `AnswerKind` (`MultipleChoice`,
+  `TypedAnswer`, `WordOrder`) that checks an answer and builds its view and solution. A
+  `GivenAnswer` value object replaces `optionId`; `Question` keeps the time rule.
+- **C. Subclasses of `Question`.** One subclass per kind.
+
+#### 4.2.2 Coupling and cohesion
+
+The analysis follows Khononov, as in 4.1.
+
+**Current state.**
+
+- _`Match` → `Question`:_ the Match only asks the question whether an answer is correct, so the
+  match rules are already independent of the kind.
+- _`optionId` ↔ every layer:_ "an answer is the id of one of four options" is a primitive that
+  travels from the client through API, use case and Match into the database (_Primitive
+  Obsession_, Fowler, _Refactoring_). Every layer depends on the multiple-choice kind.
+- _`isCorrectAnswer`:_ mixes the time limit (a game rule, the same for every kind) with the option
+  check (a rule of the kind).
+
+**Integrations per alternative.**
+
+- **A. Type field and conditionals.**
+  - _A1, `Question` ↔ rules of all kinds:_ the kinds share almost nothing, but sit in one class.
+  - _A2, `switch` places ↔ set of kinds:_ use cases, API and client each must know every kind; a
+    new kind changes all of them (_Repeated Switches_, Fowler).
+- **B. Answer kinds as objects.**
+  - _B1, `AnswerKind` ↔ its own rules:_ check, view and solution of a kind are in one class.
+  - _B2, `Match` → `Question`:_ the Match passes the `GivenAnswer` on without looking into it.
+- **C. Subclasses of `Question`.**
+  - _C1, subclass ↔ base `Question`:_ each subclass inherits state and the time rule.
+  - _C2, class hierarchy ↔ ORM mapping:_ every subclass needs its own mapping and columns.
+
+In every alternative the client needs one input view per kind; this is the feature itself.
+
+| Integration                        | Strength                      | Distance             | Volatility | Result                    |
+| ---------------------------------- | ----------------------------- | -------------------- | ---------- | ------------------------- |
+| A1 `Question` ↔ rules of all kinds | low (little shared knowledge) | same class           | high       | **Local complexity**      |
+| A2 `switch` places ↔ set of kinds  | functional                    | other layers, client | high       | **Global complexity**     |
+| B1 `AnswerKind` ↔ its own rules    | functional                    | same class           | high       | Balanced (cohesion)       |
+| B2 `Match` → `Question`            | contract                      | other module         | low        | Balanced (loose coupling) |
+| C1 Subclass ↔ base `Question`      | intrusive (inherited state)   | same module          | high       | Balanced, but rigid       |
+| C2 Class hierarchy ↔ ORM mapping   | model                         | infrastructure       | high       | **Unbalanced**            |
+
+**Summary.**
+
+| Criterion                        | A                                    | B                      | C                     |
+| -------------------------------- | ------------------------------------ | ---------------------- | --------------------- |
+| Balance                          | Local and global complexity (A1, A2) | Balanced               | Unbalanced (C2)       |
+| Adding a kind                    | Change every `switch`                | One class, client view | Subclass and mapping  |
+| Second axis (prompt: text/audio) | More `switch`es                      | Second object          | Class per combination |
+| Risk to multiple choice          | High                                 | Low                    | Medium                |
+
+#### 4.2.3 Decision and consequences
+
+> **Alternative B was chosen:** answer kinds as objects (_Strategy_, GoF) and a `GivenAnswer`
+> value object (Evans) instead of `optionId`.
+
+**Justification.**
+
+1. **Strong coupling stays close (B1).** Everything about a kind is in one class.
+2. **Weak coupling across the distance (B2).** A new kind does not touch the Match, its events or
+   the use cases.
+
+**Accepted costs.**
+
+- More small classes, and a kind-specific answer format shared between API and client.
+- The client still changes for every kind.
+- Typed answers can be rejected for a missing spelling; the catalog must list common variants.
+
+**Effect on the diagrams.**
+
+| Decision                                                                                       | Where it appears                                     |
+| ---------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `Question` ◆ 1 `AnswerKind` (interface) with `MultipleChoice`, `TypedAnswer`, `WordOrder`      | `DomainModel.drawio` (Catalog)                       |
+| `AnswerOption` (4) owned by `MultipleChoice` instead of `Question`                             | `DomainModel.drawio` (Catalog)                       |
+| `GivenAnswer` value object in `PlayerAnswer`; association `selected` to `AnswerOption` removed | `DomainModel.drawio` (Quiz Match)                    |
+| `Match.answer(AnswerOption)` becomes `Match.answer(GivenAnswer)`                               | `DomainModel.drawio` (Quiz Match)                    |
+| Question Catalog: question kinds (choice, typed, word order)                                   | `ComponentDiagram.drawio` (Match / Gameplay Service) |
+
+No new component and no new dependency: the change stays inside the Match / Gameplay Service and
+the client.
+
+**Implementation status: open.**
+
 ---
 
 ## 5. Existing design pattern instances
