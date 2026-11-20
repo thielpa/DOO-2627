@@ -1,13 +1,12 @@
-import type { Context } from "hono";
-import { HTTPException } from "hono/http-exception";
+import type { Context, Env } from "hono";
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export interface SessionAuthEnv extends Env {
+  Variables: {
+    playerId: string;
+  };
+}
 
-// Placeholder identity until Account/Profile exists
-export function playerIdOf(c: Context): string {
-  const playerId = c.req.header("X-Player-Id");
-  if (!playerId || !UUID_PATTERN.test(playerId)) {
-    throw new HTTPException(401, { message: "Missing or invalid X-Player-Id header" });
-  }
-  return playerId.toLowerCase();
+/** Reads the identity established by session middleware, never a client-supplied ID. */
+export function playerIdOf(c: Context<SessionAuthEnv>): string {
+  return c.get("playerId");
 }

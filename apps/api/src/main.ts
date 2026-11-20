@@ -4,10 +4,11 @@ import { createApp } from "./http/app";
 import config from "./infrastructure/persistence/mikro-orm.config";
 import { mikroOrmRepositories } from "./infrastructure/persistence/repositories";
 import { withRequestContext } from "./infrastructure/persistence/request-context";
+import { BunPasswordHasher } from "./infrastructure/security/bun-password-hasher";
 
 // Composition root: build infrastructure, wire it into the application and HTTP layer.
 const orm = await MikroORM.init(config);
-const useCases = createUseCases(mikroOrmRepositories(orm.em));
+const useCases = createUseCases(mikroOrmRepositories(orm.em), new BunPasswordHasher());
 const app = createApp({ useCases, aroundRequest: withRequestContext(orm), orm });
 
 export default {

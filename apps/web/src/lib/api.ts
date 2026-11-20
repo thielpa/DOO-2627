@@ -1,10 +1,9 @@
 import type { AppType } from "@languageduel/api";
 import { type ClientResponse, hc, type InferResponseType } from "hono/client";
-import { getPlayerId } from "./player-id";
 
-// Typed HTTP client for the backend. The web app talks to the domain only through this API.
+// Typed HTTP client. Session cookies authenticate API requests; identity comes from the backend session.
 export const api = hc<AppType>("/", {
-  headers: () => ({ "X-Player-Id": getPlayerId() }),
+  init: { credentials: "include" },
 });
 
 export type MatchView = InferResponseType<(typeof api.api.matches)[":id"]["$get"], 200>;

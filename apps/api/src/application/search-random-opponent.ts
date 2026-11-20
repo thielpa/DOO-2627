@@ -1,4 +1,5 @@
-import { type GameMode, Lobby, type LobbyRepository, Match, type MatchRepository } from "../domain";
+import { type GameMode, Lobby, type LobbyRepository, type MatchRepository } from "../domain";
+import { createStartedMatch } from "./start-match";
 import type { Transaction } from "./transaction";
 
 export type SearchResult =
@@ -33,10 +34,8 @@ export class SearchRandomOpponent {
 
       openLobby.join(playerId);
       const [first, second] = openLobby.players as [string, string];
-      const match = Match.create(crypto.randomUUID(), [first, second], GAME_MODE, "EASY");
-      match.start(this.now());
+      const match = await createStartedMatch(this.matches, [first, second], GAME_MODE, this.now());
       openLobby.start(match.id);
-      await this.matches.save(match);
       await this.lobbies.save(openLobby);
       return { status: "matched", matchId: match.id };
     });
