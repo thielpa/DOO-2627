@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Message } from "primereact/message";
+import { ProgressSpinner } from "primereact/progressspinner";
+import { LoadError } from "../components/load-error";
 import { MatchStage } from "../components/match/match-stage";
-import { MatchStatusTag } from "../components/match/match-status-tag";
+import { MatchStatusTag, TurnTimeLeft } from "../components/match/match-status-tag";
 import { RoundOverview } from "../components/match/round-overview";
 import { useMatchPlay } from "../lib/use-match-play";
 
@@ -11,11 +12,32 @@ export const Route = createFileRoute("/matches/$matchId")({
 
 function MatchPage() {
   const { matchId } = Route.useParams();
-  const { match, question, feedback, clearFeedback, chooseCategory, answer, error } =
+  const { match, question, feedback, clearFeedback, chooseCategory, answer, error, retry } =
     useMatchPlay(matchId);
 
-  if (match.isPending) return <p>Loading…</p>;
-  if (match.isError) return <Message severity="error" text={match.error.message} />;
+  const backLink = (
+    <Link to="/" className="text-indigo-600 underline">
+      ← My matches
+    </Link>
+  );
+
+  if (match.isPending) {
+    return (
+      <section className="flex flex-col items-center gap-2 py-12" aria-busy="true">
+        <ProgressSpinner style={{ width: "3rem", height: "3rem" }} />
+        <p className="text-gray-600">Loading match…</p>
+      </section>
+    );
+  }
+  if (match.isError) {
+    return (
+      <section className="flex flex-col gap-6">
+        {backLink}
+        <LoadError error={match.error} onRetry={() => match.refetch()} />
+      </section>
+    );
+  }
+
   const view = match.data;
   // Scores stay hidden while you pick a category or answer, so they don't distract or pressure.
   const areResultsVisible =
@@ -23,11 +45,12 @@ function MatchPage() {
 
   return (
     <section className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <Link to="/" className="text-indigo-600 underline">
-          ← My matches
-        </Link>
-        <MatchStatusTag match={view} />
+      <div className="flex items-center justify-between gap-2">
+        {backLink}
+        <span className="flex items-center gap-2">
+          {view.isYourTurn && <TurnTimeLeft match={view} />}
+          <MatchStatusTag match={view} />
+        </span>
       </div>
 
       {areResultsVisible && (
@@ -36,7 +59,7 @@ function MatchPage() {
         </p>
       )}
 
-      {error && <Message severity="error" text={error.message} />}
+      {error && <LoadError error={error} onRetry={retry} />}
 
       <MatchStage
         view={view}
@@ -45,7 +68,7 @@ function MatchPage() {
         isBusy={chooseCategory.isPending || answer.isPending}
         onNext={clearFeedback}
         onChooseCategory={(categoryId) => chooseCategory.mutate(categoryId)}
-        onAnswer={(q, optionId) => answer.mutate({ question: q, optionId })}
+        onAnswer={(q, optionId, position) => answer.mutate({ question: q, optionId, position })}
       />
 
       {areResultsVisible && <RoundOverview rounds={view.rounds} />}

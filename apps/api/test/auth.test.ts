@@ -9,7 +9,7 @@ let app: ReturnType<typeof createApp>;
 
 beforeEach(() => {
   now = new Date("2026-11-15T12:00:00Z");
-  app = createApp({ useCases: inMemoryUseCases([], [], () => now) });
+  app = createApp({ useCases: inMemoryUseCases([], [], { now: () => now }).useCases });
 });
 
 function login(username: string, password: string, url = "/auth/login") {

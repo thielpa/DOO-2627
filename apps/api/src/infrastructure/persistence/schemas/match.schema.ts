@@ -42,5 +42,10 @@ export const MatchSchema = privateStateSchema(Match, {
     _players: { type: "string[]", fieldName: "players" },
     _rounds: { kind: "embedded", entity: () => Round, array: true, fieldName: "rounds" },
     _startedAt: { type: "datetime", fieldName: "started_at", nullable: true },
+    _turnTimeoutMs: { type: "integer", fieldName: "turn_timeout_ms" },
+    _turnDeadline: { type: "datetime", fieldName: "turn_deadline", nullable: true },
+    _expiredBy: { type: "string", fieldName: "expired_by", nullable: true },
   },
+  // For the expiry job, which looks for running matches past their deadline.
+  indexes: [{ properties: ["_status", "_turnDeadline"] }],
 });

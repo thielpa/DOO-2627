@@ -10,7 +10,7 @@ function cookieFrom(response: Response): string {
 
 describe("friend challenge HTTP routes", () => {
   it("uses session identity for invite and exposes public challenge data", async () => {
-    const app = createApp({ useCases: inMemoryUseCases() });
+    const app = createApp({ useCases: inMemoryUseCases().useCases });
     const login = async (username: string) =>
       app.request("/auth/login", {
         method: "POST",
@@ -53,7 +53,7 @@ describe("friend challenge HTTP routes", () => {
   });
 
   it("requires a session and validates invite body and challenge IDs", async () => {
-    const app = createApp({ useCases: inMemoryUseCases() });
+    const app = createApp({ useCases: inMemoryUseCases().useCases });
     expect((await app.request("/api/friend-challenges")).status).toBe(401);
 
     const login = await app.request("/auth/login", {

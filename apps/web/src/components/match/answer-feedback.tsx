@@ -1,10 +1,12 @@
 import { Button } from "primereact/button";
 import { Card } from "primereact/card";
 import type { AnswerResult, QuestionView } from "../../lib/api";
+import { type RoundPosition, RoundProgress } from "./round-progress";
 
 export interface Feedback extends AnswerResult {
   question: QuestionView;
   chosenOptionId: string | null;
+  position: RoundPosition;
 }
 
 function optionStyle(optionId: string, correctId: string, chosenId: string | null): string {
@@ -20,11 +22,13 @@ function headlineOf(isCorrect: boolean, chosenOptionId: string | null): string {
 
 /** Shows right away whether the answer was correct and reveals the correct option. */
 export function AnswerFeedback({ feedback, onNext }: { feedback: Feedback; onNext: () => void }) {
-  const { question, chosenOptionId, isCorrect, correctOptionId } = feedback;
+  const { question, chosenOptionId, isCorrect, correctOptionId, position } = feedback;
   const headline = headlineOf(isCorrect, chosenOptionId);
+  const isLastOfRound = position.questionNumber >= position.questionCount;
 
   return (
     <Card title={question.text}>
+      <RoundProgress position={position} isAnswered />
       <p className={`mb-4 text-lg font-semibold ${isCorrect ? "text-green-700" : "text-red-700"}`}>
         {headline}
       </p>
@@ -39,7 +43,7 @@ export function AnswerFeedback({ feedback, onNext }: { feedback: Feedback; onNex
         ))}
       </ul>
       <Button
-        label="Next"
+        label={isLastOfRound ? "Continue" : "Next question"}
         icon="pi pi-arrow-right"
         iconPos="right"
         className="mt-4"

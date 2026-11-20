@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { Feedback } from "../components/match/answer-feedback";
+import type { RoundPosition } from "../components/match/round-progress";
 import { api, type QuestionView, unwrap } from "./api";
 
 /** Server state and actions for playing one match. */
@@ -12,9 +13,12 @@ export function useMatchPlay(matchId: string) {
   const match = useQuery({
     queryKey: ["match", matchId],
     queryFn: () => unwrap(api.api.matches[":id"].$get({ param: matchParam })),
-    // Only poll while waiting for the opponent; during your own turn nothing changes remotely.
-    refetchInterval: (query) =>
-      query.state.data?.status === "STARTED" && !query.state.data.isYourTurn ? 3000 : false,
+    // Poll often while waiting for the opponent; during your own turn only to notice an expiry.
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (data?.status !== "STARTED") return false;
+      return data.isYourTurn ? 60_000 : 3000;
+    },
   });
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["match", matchId] });
 
@@ -27,15 +31,23 @@ export function useMatchPlay(matchId: string) {
     enabled: Boolean(match.data?.current?.hasQuestionToAnswer) && !feedback,
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: false,
+    // A rejection (e.g. the deadline passed) will not change by retrying.
+    retry: false,
   });
 
   const chooseCategory = useMutation({
     mutationFn: (categoryId: string) =>
       unwrap(api.api.matches[":id"].category.$post({ param: matchParam, json: { categoryId } })),
     onSuccess: refresh,
+    // The match may have changed meanwhile (e.g. expired); show its current state.
+    onError: refresh,
   });
   const answer = useMutation({
-    mutationFn: (input: { question: QuestionView; optionId: string | null }) =>
+    mutationFn: (input: {
+      question: QuestionView;
+      optionId: string | null;
+      position: RoundPosition;
+    }) =>
       unwrap(
         api.api.matches[":id"].answers.$post({
           param: matchParam,
@@ -43,10 +55,16 @@ export function useMatchPlay(matchId: string) {
         }),
       ),
     onSuccess: (result, input) => {
-      setFeedback({ question: input.question, chosenOptionId: input.optionId, ...result });
+      setFeedback({
+        question: input.question,
+        chosenOptionId: input.optionId,
+        position: input.position,
+        ...result,
+      });
       queryClient.removeQueries({ queryKey: questionKey });
       refresh();
     },
+    onError: refresh,
   });
 
   return {
@@ -57,5 +75,12 @@ export function useMatchPlay(matchId: string) {
     chooseCategory,
     answer,
     error: chooseCategory.error ?? answer.error ?? question.error,
+    /** Clears the error and loads the match (and the failed question, if any) again. */
+    retry: () => {
+      chooseCategory.reset();
+      answer.reset();
+      if (question.isError) question.refetch();
+      refresh();
+    },
   };
 }

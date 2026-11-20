@@ -3,6 +3,7 @@ import {
   DomainError,
   type Match,
   type MatchRepository,
+  QUESTIONS_PER_ROUND,
   type ReadonlyRound,
   type RoundStatus,
 } from "../domain";
@@ -23,6 +24,9 @@ export interface CurrentRoundView {
   categories: CategoryView[] | null;
   /** The player has a question to answer; it is revealed (and its clock starts) via ShowQuestion. */
   hasQuestionToAnswer: boolean;
+  /** Progress of the player in this round: questions answered of `questionCount`. */
+  answeredCount: number;
+  questionCount: number;
 }
 
 export interface MatchView extends MatchSummary {
@@ -43,20 +47,19 @@ export class GetMatchView {
 
     const categories = await this.categories.all();
     const categoryNameById = new Map(categories.map((c) => [c.id, c.name]));
-    const opponentId = match.opponentOf(playerId);
 
     return {
       ...summarize(match, playerId),
-      rounds: match.rounds.map((round) => roundView(round, playerId, opponentId, categoryNameById)),
+      rounds: match.rounds.map((round) => roundView(match, round, playerId, categoryNameById)),
       current: currentRoundView(match, playerId, categories),
     };
   }
 }
 
 function roundView(
+  match: Match,
   round: ReadonlyRound,
   playerId: string,
-  opponentId: string,
   categoryNameById: Map<string, string>,
 ): RoundView {
   return {
@@ -64,7 +67,7 @@ function roundView(
     status: round.status,
     categoryName: categoryNameById.get(round.categoryId ?? "") ?? null,
     yourCorrectCount: round.hasCategory() ? round.correctCount(playerId) : null,
-    opponentCorrectCount: round.visibleCorrectCountOf(opponentId, playerId),
+    opponentCorrectCount: match.visibleOpponentCorrectCount(round, playerId),
   };
 }
 
@@ -84,5 +87,7 @@ function currentRoundView(
     isPlayerChooser: round.chooserId === playerId,
     categories: needsCategory ? categories.map(({ id, name }) => ({ id, name })) : null,
     hasQuestionToAnswer: isPlayerTurn && round.nextQuestionIdFor(playerId) !== null,
+    answeredCount: round.answeredCount(playerId),
+    questionCount: QUESTIONS_PER_ROUND,
   };
 }

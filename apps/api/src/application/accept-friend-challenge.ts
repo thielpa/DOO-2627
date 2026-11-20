@@ -20,6 +20,7 @@ export class AcceptFriendChallenge {
     private readonly matches: MatchRepository,
     private readonly transaction: Transaction,
     private readonly now: () => Date,
+    private readonly turnTimeoutMs: number,
   ) {}
 
   execute(challengeId: string, playerId: string): Promise<AcceptedFriendChallenge> {
@@ -40,6 +41,7 @@ export class AcceptFriendChallenge {
         [challenge.challengerPlayerId, challenge.challengedPlayerId],
         "SOLO_FRIEND",
         respondedAt,
+        this.turnTimeoutMs,
       );
       await this.challenges.save(challenge);
       return { challenge: await friendChallengeView(challenge, this.players), matchId: match.id };

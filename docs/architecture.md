@@ -10,8 +10,9 @@ Its architecture puts the domain model in the centre and keeps frameworks at the
 | `apps/api` | Domain model, application services, adapters (HTTP via Hono, DB via MikroORM) |
 | `apps/web` | React UI                                                                      |
 
-Inside `apps/api/src`, the layers are folders: `domain/`, `application/`, `infrastructure/` and
-`http/`. The domain must not import from the other layers or from frameworks.
+Inside `apps/api/src`, the layers are folders: `domain/`, `application/`, `infrastructure/`,
+`http/` and `jobs/`. The domain must not import from the other layers or from frameworks.
+`http/` and `jobs/` are the two entry points: requests and timers both call use cases.
 
 ## Where the DDD building blocks go
 
@@ -24,7 +25,22 @@ Inside `apps/api/src`, the layers are folders: `domain/`, `application/`, `infra
 | Persistence mapping (`EntitySchema`)          | `apps/api/src/infrastructure/persistence/schemas/`      |
 | Repository **implementations**                | `apps/api/src/infrastructure/persistence/repositories/` |
 | HTTP routes / controllers                     | `apps/api/src/http/routes/`                             |
+| Periodic jobs (e.g. expiring overdue matches) | `apps/api/src/jobs/`                                    |
 | Wiring everything together (composition root) | `apps/api/src/main.ts`                                  |
+
+## Domain events
+
+Domain events are the contract between bounded contexts. Other contexts (e.g. notifications,
+gamification) react to what happens in a match by subscribing to its events, without depending on
+the Match context's classes. That is why the event types live in `domain/shared/events/`, outside
+the publishing context.
+
+Aggregates only record the events; use cases dispatch them inside their transaction, so the domain
+does not depend on the dispatcher. For handlers this means:
+
+- A handler runs in the same transaction: if it throws, the whole change rolls back. Keep it fast
+  and do not call external systems (e-mail, push) from it.
+- Fields may be added to an event; renaming or removing one needs a new `version`.
 
 ## Persistence
 
@@ -33,6 +49,7 @@ classes and tables is defined with `EntitySchema` in the infrastructure layer, s
 need no decorators. Every HTTP request gets its own `EntityManager` fork (see `http/app.ts`).
 
 To persist a new domain class:
+
 1. Write the class in `apps/api/src/domain/<bounded-context>/`.
 2. Add an `EntitySchema` for it in `infrastructure/persistence/schemas/` and register it in
    `schemas/index.ts`.

@@ -1,6 +1,7 @@
 export type Entry = [question: string, correct: string, ...wrong: [string, string, string]];
 
-// Starter catalog for learners of German: sentences, grammar and idioms.
+// Starter catalog for learners of German: sentences, grammar and idioms
+// TODO: Replace by better structure way of importing them.
 export const catalog: { id: string; name: string; entries: Entry[] }[] = [
   {
     id: "food",
@@ -42,6 +43,36 @@ export const catalog: { id: string; name: string; entries: Entry[] }[] = [
         "Die Suppe hat zu heiß zu essen.",
         "Die Suppe ist zu warm, um sie zu kochen.",
       ],
+      ['Complete: "Ich esse gern Brot ___ Butter."', "mit", "für", "von", "aus"],
+      [
+        'Translate: "Die Rechnung, bitte!"',
+        "The bill, please!",
+        "The menu, please!",
+        "The order, please!",
+        "A table, please!",
+      ],
+      [
+        'What does "Das ist mir Wurst" really mean?',
+        "I don't care.",
+        "That's my sausage.",
+        "I love sausages.",
+        "That's too salty for me.",
+      ],
+      [
+        'Complete: "Ich habe keinen Hunger, ich habe schon ___."',
+        "gegessen",
+        "geessen",
+        "gegesst",
+        "essen",
+      ],
+      [
+        "Which sentence is correct?",
+        "Möchtest du noch etwas trinken?",
+        "Möchtest du trinken noch etwas?",
+        "Möchtest noch du etwas trinken?",
+        "Noch etwas möchtest trinken du?",
+      ],
+      ['Complete: "Wir haben keine Milch ___."', "mehr", "noch", "nicht", "schon"],
     ],
   },
   {
@@ -78,6 +109,36 @@ export const catalog: { id: string; name: string; entries: Entry[] }[] = [
         "Gestern wir sind ans Meer gefahren.",
         "Gestern sind wir ans Meer gefahrt.",
       ],
+      ['Complete: "Ich wohne ___ einem kleinen Hotel am Bahnhof."', "in", "an", "auf", "bei"],
+      [
+        'Translate: "Is this seat free?"',
+        "Ist dieser Platz frei?",
+        "Ist diese Platz frei?",
+        "Hat dieser Platz frei?",
+        "Gibt es dieser Platz frei?",
+      ],
+      [
+        'What does "Hals- und Beinbruch!" mean?',
+        "Good luck!",
+        "Be careful on the stairs!",
+        "Get well soon!",
+        "Have a safe flight!",
+      ],
+      [
+        'Complete: "Der Zug hat zwanzig Minuten ___."',
+        "Verspätung",
+        "Spätung",
+        "Verspäten",
+        "Zuspät",
+      ],
+      [
+        "Which sentence is correct?",
+        "Wir übernachten zwei Nächte in Hamburg.",
+        "Wir übernachten zwei Nacht in Hamburg.",
+        "Wir übernachten in zwei Nächte Hamburg.",
+        "Wir übernachtet zwei Nächte in Hamburg.",
+      ],
+      ['Complete: "Im Sommer fliegen wir ___ USA."', "in die", "nach", "zu den", "in den"],
     ],
   },
   {
@@ -125,6 +186,36 @@ export const catalog: { id: string; name: string; entries: Entry[] }[] = [
         "Ich weiß nicht, ob er kommt heute.",
         "Ich weiß nicht, ob kommt er heute.",
         "Ich nicht weiß, ob er heute kommt.",
+      ],
+      ['Complete: "Ich stehe jeden Morgen um sieben Uhr ___."', "auf", "an", "ab", "aus"],
+      [
+        'What does "Da steppt der Bär" mean?',
+        "That's where the party is.",
+        "A bear is dancing there.",
+        "That place is dangerous.",
+        "It's very cold there.",
+      ],
+      [
+        'Translate: "I have been living in Vienna for two years."',
+        "Ich wohne seit zwei Jahren in Wien.",
+        "Ich wohne vor zwei Jahren in Wien.",
+        "Ich wohne für zwei Jahren in Wien.",
+        "Ich bin seit zwei Jahre in Wien wohnen.",
+      ],
+      ['Complete: "Hast du Lust, heute Abend ins Kino ___ gehen?"', "zu", "um", "für", "zum"],
+      [
+        "Which sentence is correct?",
+        "Am Wochenende räume ich meine Wohnung auf.",
+        "Am Wochenende ich räume meine Wohnung auf.",
+        "Am Wochenende aufräume ich meine Wohnung.",
+        "Am Wochenende räume meine Wohnung ich auf.",
+      ],
+      [
+        'Complete: "Gestern habe ich meinen Schlüssel ___."',
+        "verloren",
+        "verliert",
+        "verlieren",
+        "verlort",
       ],
     ],
   },
