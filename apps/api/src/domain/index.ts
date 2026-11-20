@@ -18,4 +18,6 @@ export * from "./matchmaking/friend-challenge";
 export * from "./matchmaking/game-mode";
 export * from "./matchmaking/lobby";
 export * from "./matchmaking/repositories";
+export * from "./notification";
 export * from "./shared/domain-error";
+export * from "./shared/events";

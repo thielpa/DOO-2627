@@ -50,6 +50,45 @@ bun run dev            # API on http://localhost:3000, web on http://localhost:5
 | `bun run lint`      | Lint and format check (Biome) |
 | `bun run format`    | Apply Biome fixes             |
 
+### Integration tests
+
+Most tests run without a database. The PostgreSQL integration tests (`apps/api/test/integration`)
+need dedicated, throwaway databases, because they create and drop their own tables. They refuse to
+run against any other database name. With the Postgres container from `bun run db:up` running:
+
+```sh
+docker compose exec postgres createdb -U languageduel languageduel_friend_challenge_test
+docker compose exec postgres createdb -U languageduel languageduel_notification_test
+
+export FRIEND_CHALLENGE_TEST_DATABASE_URL=postgres://languageduel:languageduel@localhost:5432/languageduel_friend_challenge_test
+export NOTIFICATION_TEST_DATABASE_URL=postgres://languageduel:languageduel@localhost:5432/languageduel_notification_test
+bun run test
+```
+
+| Variable                             | Database                             | Test                              |
+| ------------------------------------ | ------------------------------------ | --------------------------------- |
+| `FRIEND_CHALLENGE_TEST_DATABASE_URL` | `languageduel_friend_challenge_test` | Friend challenge concurrency      |
+| `NOTIFICATION_TEST_DATABASE_URL`     | `languageduel_notification_test`     | Notification repository and relay |
+
+The Notification test applies the real migrations to its database and wipes the `public` schema
+first. In CI both databases are created by the workflow.
+
+### Notifications
+
+The API runs a notification relay (outbox polling publisher) every
+`NOTIFICATION_RELAY_INTERVAL_MS` (default `1000`). A delivery is retried once per cycle and fails
+after `NOTIFICATION_MAX_ATTEMPTS` attempts (default `5`).
+
+Notifications API (session required, mounted at `/api/notifications`):
+- `GET /api/notifications?since=<cursor>&limit=<1..50, default 20>` returns
+  `{ items, unreadCount, cursor }`, newest first, ordered by when the IN_APP delivery was sent (then
+  id), only for notifications already `SENT`. With `since`, it returns the oldest `limit` items
+  after the cursor, so a larger backlog arrives over successive polls. It sends an `ETag`; a
+  matching `If-None-Match` answers `304`.
+- `POST /api/notifications/:id/read` returns `204` and is idempotent. `404` if the notification
+  does not exist or is not the caller's. Ownership is the only check: a notification that is still
+  `PENDING` (not yet sent by the relay, so not in the list) can be marked read by its owner.
+
 Database migrations: `bun run --filter @languageduel/api orm migration:create` / `migration:up`.
 
 To try a match locally, open the web app in a normal and a private browser window: each window

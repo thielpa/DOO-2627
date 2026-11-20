@@ -7,10 +7,13 @@ import type {
   FriendChallenge,
   FriendChallengeRepository,
   GameMode,
+  ListOptions,
   Lobby,
   LobbyRepository,
   Match,
   MatchRepository,
+  Notification,
+  NotificationRepository,
   Player,
   PlayerRepository,
   Question,
@@ -176,6 +179,82 @@ export class InMemoryFriendChallengeRepository implements FriendChallengeReposit
   }
 }
 
+export class InMemoryNotificationRepository implements NotificationRepository {
+  private readonly notifications = new Map<string, Notification>();
+
+  async save(notification: Notification) {
+    const duplicate = [...this.notifications.values()].find(
+      (n) =>
+        n.id !== notification.id &&
+        n.eventId === notification.eventId &&
+        n.recipientId === notification.recipientId,
+    );
+    if (duplicate) throw new DomainError("CONFLICT", "Notification already exists for this event");
+    this.notifications.set(notification.id, notification);
+  }
+
+  async byIdForRecipient(id: string, recipientId: string) {
+    const found = this.notifications.get(id);
+    return found && found.recipientId === recipientId ? found : null;
+  }
+
+  async existsForEvent(eventId: string, recipientId: string) {
+    return [...this.notifications.values()].some(
+      (n) => n.eventId === eventId && n.recipientId === recipientId,
+    );
+  }
+
+  private visibleFor(recipientId: string) {
+    return [...this.notifications.values()].filter(
+      (n) => n.recipientId === recipientId && n.isVisibleInApp(),
+    );
+  }
+
+  async listForRecipient(recipientId: string, { after, limit }: ListOptions) {
+    const position = (n: Notification) => ({ at: n.visibleAt()?.getTime() ?? 0, id: n.id });
+    const compare = (a: Notification, b: Notification) => {
+      const pa = position(a);
+      const pb = position(b);
+      return pa.at - pb.at || (pa.id < pb.id ? -1 : pa.id > pb.id ? 1 : 0);
+    };
+    const matching = this.visibleFor(recipientId)
+      .filter((n) => {
+        if (!after) return true;
+        const p = position(n);
+        const t = after.visibleAt.getTime();
+        return p.at > t || (p.at === t && p.id > after.id);
+      })
+      .sort(compare);
+    // Incremental: the oldest `limit` after the cursor; initial: the newest `limit`. Newest first.
+    const page = after ? matching.slice(0, limit) : matching.slice(-limit);
+    return page.reverse();
+  }
+
+  async unreadCount(recipientId: string) {
+    return this.visibleFor(recipientId).filter((n) => !n.readAt).length;
+  }
+
+  async pollingState(recipientId: string) {
+    const visible = this.visibleFor(recipientId);
+    const times = visible.map((n) => n.updatedAt.getTime());
+    return {
+      visibleCount: visible.length,
+      unreadCount: visible.filter((n) => !n.readAt).length,
+      lastUpdatedAt: times.length > 0 ? new Date(Math.max(...times)) : null,
+    };
+  }
+
+  async claimPendingDeliveries(limit: number) {
+    return [...this.notifications.values()]
+      .flatMap((notification) =>
+        notification.deliveries
+          .filter((delivery) => delivery.status === "PENDING")
+          .map((delivery) => ({ notification, delivery })),
+      )
+      .slice(0, limit);
+  }
+}
+
 export function inMemoryUseCases(
   categories: Category[] = [],
   questions: Question[] = [],
@@ -189,6 +268,7 @@ export function inMemoryUseCases(
     players: new InMemoryPlayerRepository(),
     sessions: new InMemorySessionRepository(),
     friendChallenges: new InMemoryFriendChallengeRepository(),
+    notifications: new InMemoryNotificationRepository(),
     transaction: { run: (work) => work() },
   };
   const passwordHasher: PasswordHasher = {

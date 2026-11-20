@@ -7,7 +7,12 @@ const resultTag = {
   DRAW: { value: "Draw", severity: "secondary" },
 } as const;
 
-export function MatchStatusTag({ match }: { match: Pick<MatchSummary, "result" | "isYourTurn"> }) {
+export function MatchStatusTag({
+  match,
+}: {
+  match: Pick<MatchSummary, "result" | "isYourTurn" | "status">;
+}) {
+  if (match.status === "EXPIRED") return <Tag value="Expired" severity="secondary" />;
   if (match.result) return <Tag {...resultTag[match.result]} />;
   return match.isYourTurn ? (
     <Tag value="Your turn" severity="warning" />
