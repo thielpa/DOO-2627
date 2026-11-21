@@ -1,5 +1,7 @@
 import type { NotificationCursor } from "../../domain/notification";
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** Opaque cursor: base64url("<visibleAt ISO>|<notification id>") of the newest item returned. */
 export function encodeCursor(cursor: NotificationCursor): string {
   return Buffer.from(`${cursor.visibleAt.toISOString()}|${cursor.id}`).toString("base64url");
@@ -12,6 +14,6 @@ export function decodeCursor(value: string): NotificationCursor | null {
   if (separator < 0) return null;
   const visibleAt = new Date(decoded.slice(0, separator));
   const id = decoded.slice(separator + 1);
-  if (!Number.isFinite(visibleAt.getTime()) || id.length === 0) return null;
+  if (!Number.isFinite(visibleAt.getTime()) || !UUID_PATTERN.test(id)) return null;
   return { visibleAt, id };
 }

@@ -458,3 +458,17 @@ describe("MarkNotificationRead", () => {
     expect(after.unreadCount).toBe(0);
   });
 });
+
+describe("decodeCursor", () => {
+  const encode = (raw: string) => Buffer.from(raw).toString("base64url");
+
+  it("rejects a cursor whose id is not a UUID", () => {
+    expect(decodeCursor(encode("2026-11-21T20:10:25.502Z|notauuid"))).toBeNull();
+    expect(decodeCursor(encode("2026-11-21T20:10:25.502Z|0c1d2e3f-1234"))).toBeNull();
+  });
+
+  it("accepts a cursor with a valid date and UUID", () => {
+    const id = "0c1d2e3f-4a5b-4c6d-8e9f-0a1b2c3d4e5f";
+    expect(decodeCursor(encode(`2026-11-21T20:10:25.502Z|${id}`))?.id).toBe(id);
+  });
+});
