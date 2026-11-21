@@ -193,15 +193,23 @@
         <mxCell id="e_mm_match" edge="1" parent="1" source="svc_matchmaking" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endFill=0;html=1;rounded=0;labelBackgroundColor=none;fontStyle=2;fontSize=9;" target="svc_match" value="&lt;font style=&quot;font-size: 11px;&quot;&gt;&amp;lt;&amp;lt;use&amp;gt;&amp;gt;&lt;br&gt;creates match&lt;/font&gt;">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e_match_push" edge="1" parent="1" source="svc_match" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endFill=0;html=1;rounded=0;labelBackgroundColor=none;fontStyle=2;fontSize=9;" target="be_push_req" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;&amp;lt;&amp;lt;use&amp;gt;&amp;gt;&lt;br&gt;question ready&lt;br&gt;notification&lt;/font&gt;">
+        <mxCell id="e_match_push" edge="1" parent="1" source="svc_match" style="exitX=1;exitY=0.5;exitDx=0;exitDy=0;edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endFill=0;html=1;rounded=0;labelBackgroundColor=none;fontStyle=2;fontSize=9;" target="be_push_req" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;&amp;lt;&amp;lt;use&amp;gt;&amp;gt;&lt;br&gt;question ready&lt;br&gt;notification&lt;/font&gt;">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="1336" y="700" />
+              <mxPoint x="1019" y="690" />
+              <mxPoint x="1019" y="540" />
+              <mxPoint x="1336" y="540" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e_match_gami" edge="1" parent="1" source="svc_match" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endFill=0;html=1;rounded=0;labelBackgroundColor=none;fontStyle=2;fontSize=9;" target="svc_gamification" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;&amp;lt;&amp;lt;use&amp;gt;&amp;gt;&lt;br&gt;match completed&lt;br&gt;→ Calculate score&lt;/font&gt;">
-          <mxGeometry relative="1" as="geometry" />
+        <mxCell id="e_match_gami" edge="1" parent="1" source="svc_match" style="exitX=1;exitY=0.1;exitDx=0;exitDy=0;edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endFill=0;html=1;rounded=0;labelBackgroundColor=none;fontStyle=2;fontSize=9;" target="svc_gamification" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;&amp;lt;&amp;lt;use&amp;gt;&amp;gt;&lt;br&gt;match completed&lt;br&gt;→ Calculate score&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1008" y="564" />
+              <mxPoint x="1008" y="520" />
+              <mxPoint x="1150" y="520" />
+            </Array>
+          </mxGeometry>
         </mxCell>
         <mxCell id="e_social_push" edge="1" parent="1" source="svc_social" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endFill=0;html=1;rounded=0;labelBackgroundColor=none;fontStyle=2;fontSize=9;" target="be_push_req" value="&lt;font style=&quot;font-size: 11px;&quot;&gt;&amp;lt;&amp;lt;use&amp;gt;&amp;gt;&lt;br&gt;friend invite&lt;br&gt;notification&lt;/font&gt;">
           <mxGeometry relative="1" as="geometry">
@@ -234,6 +242,63 @@
 <mxCell id="e_dep_ws" edge="1" parent="1" source="spa_ws_req" target="be_ws_prov" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endFill=0;html=1;rounded=0;labelBackgroundColor=none;fontStyle=2;fontSize=9;" value="&lt;font style=&quot;font-size: 11px;&quot;&gt;&amp;lt;&amp;lt;use&amp;gt;&amp;gt;&lt;br&gt;WebSocket&lt;/font&gt;"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="375" y="353" /><mxPoint x="375" y="750" /></Array></mxGeometry></mxCell>
 <mxCell id="e_rt_match" edge="1" parent="1" source="svc_rt" target="svc_match" style="exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.687;entryDx=0;entryDy=0;edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endFill=0;html=1;rounded=0;labelBackgroundColor=none;fontStyle=2;fontSize=9;" value=""><mxGeometry relative="1" as="geometry"></mxGeometry></mxCell>
 <mxCell id="legend_new" parent="1" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=6;rounded=1;strokeColor=#0050EF;strokeWidth=3;fillColor=#ffffff;fontSize=12;" value="Thick blue border = new or changed in iteration 1 (real-time play scenario and 1vs1 MVP implementation)" vertex="1"><mxGeometry height="50" width="270" x="1546" y="775" as="geometry" /></mxCell>
+
+        <mxCell id="ev_notif" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=center;verticalAlign=middle;fillColor=#FFF2CC;strokeColor=#0050EF;strokeWidth=3;" value="&amp;lt;&amp;lt;event&amp;gt;&amp;gt; TurnPassed · MatchCompleted · MatchExpired&lt;br&gt;contract v1 (docs/events.md) · same transaction" vertex="1">
+          <mxGeometry height="44" width="270" x="1040" y="552" as="geometry" />
+        </mxCell>
+        <mxCell id="svc_notif" parent="1" style="shape=module;jettyWidth=20;jettyHeight=10;html=1;whiteSpace=wrap;align=center;verticalAlign=top;spacingTop=4;spacingLeft=10;fillColor=#D5E8D4;strokeColor=#0050EF;strokeWidth=3;" value="&amp;lt;&amp;lt;component&amp;gt;&amp;gt;&lt;br&gt;&lt;b&gt;Notification Service&lt;/b&gt;" vertex="1">
+          <mxGeometry height="246" width="270" x="1040" y="606" as="geometry" />
+        </mxCell>
+        <mxCell id="cap_ntf_handlers" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;spacingLeft=6;spacingTop=2;verticalAlign=top;fillColor=#DAE8FC;strokeColor=#6C8EBF;" value="Notification handlers&lt;br&gt;• NotifyOnTurnPassed • NotifyOnMatchCompleted&lt;br&gt;• NotifyOnMatchExpired (idempotent: event, recipient)" vertex="1">
+          <mxGeometry height="44" width="225" x="1055" y="652" as="geometry" />
+        </mxCell>
+        <mxCell id="cap_ntf_repo" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;spacingLeft=6;spacingTop=2;verticalAlign=top;fillColor=#DAE8FC;strokeColor=#6C8EBF;" value="Notification repository / Message outbox&lt;br&gt;• Notification + Delivery(PENDING) saved&lt;br&gt;• in the same transaction as the event" vertex="1">
+          <mxGeometry height="44" width="225" x="1055" y="700" as="geometry" />
+        </mxCell>
+        <mxCell id="cap_ntf_relay" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;spacingLeft=6;spacingTop=2;verticalAlign=top;fillColor=#DAE8FC;strokeColor=#6C8EBF;" value="Message relay (polling publisher)&lt;br&gt;• every 1s: claim PENDING (SKIP LOCKED)&lt;br&gt;• retry up to N attempts, then FAILED" vertex="1">
+          <mxGeometry height="44" width="225" x="1055" y="748" as="geometry" />
+        </mxCell>
+        <mxCell id="cap_ntf_sender" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;spacingLeft=6;spacingTop=2;verticalAlign=top;fillColor=#DAE8FC;strokeColor=#6C8EBF;" value="DeliverySender port&lt;br&gt;• InAppSender (now) → SENT&lt;br&gt;• EmailSender (future, not implemented)" vertex="1">
+          <mxGeometry height="44" width="225" x="1055" y="796" as="geometry" />
+        </mxCell>
+        <mxCell id="spa_notif_req" parent="1" style="shape=requiredInterface;html=1;fillColor=#FFFFFF;strokeColor=#6C8EBF;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=none;fontStyle=1;" value="Notifications&lt;br&gt;API" vertex="1">
+          <mxGeometry height="16" width="16" x="285" y="270" as="geometry" />
+        </mxCell>
+        <mxCell id="be_notif_prov" parent="1" style="ellipse;html=1;whiteSpace=wrap;fillColor=#FFFFFF;strokeColor=#82B366;verticalLabelPosition=bottom;verticalAlign=top;labelBackgroundColor=none;fontStyle=1;" value="" vertex="1">
+          <mxGeometry height="16" width="16" x="1302" y="720" as="geometry" />
+        </mxCell>
+        <mxCell id="e_spa_notif" edge="1" parent="1" source="spa" target="spa_notif_req" style="endArrow=none;html=1;rounded=0;strokeColor=#6C8EBF;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_be_notif" edge="1" parent="1" source="be_notif_prov" target="svc_notif" style="endArrow=none;html=1;rounded=0;strokeColor=#82B366;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_dep_notif" edge="1" parent="1" source="spa_notif_req" target="be_notif_prov" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endFill=0;html=1;rounded=0;labelBackgroundColor=#ffffff;fontStyle=2;fontSize=9;strokeColor=#0050EF;strokeWidth=2;" value="&lt;font style=&quot;font-size: 11px;&quot;&gt;&amp;lt;&amp;lt;use&amp;gt;&amp;gt;&lt;br&gt;GET /api/notifications (poll 5s, cursor)&lt;br&gt;POST /api/notifications/:id/read&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="395" y="278" />
+              <mxPoint x="395" y="65" />
+              <mxPoint x="1295" y="65" />
+              <mxPoint x="1295" y="728" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_match_ev" edge="1" parent="1" source="svc_match" target="ev_notif" style="exitX=1;exitY=0.2;exitDx=0;exitDy=0;edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endFill=0;html=1;rounded=0;labelBackgroundColor=#ffffff;fontStyle=2;fontSize=9;strokeColor=#0050EF;strokeWidth=2;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_ev_notif" edge="1" parent="1" source="ev_notif" target="svc_notif" style="edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endFill=0;html=1;rounded=0;labelBackgroundColor=#ffffff;fontStyle=2;fontSize=9;strokeColor=#0050EF;strokeWidth=2;" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_notif_push" edge="1" parent="1" source="svc_notif" target="be_push_req" style="exitX=1;exitY=0.15;exitDx=0;exitDy=0;edgeStyle=orthogonalEdgeStyle;dashed=1;endArrow=open;endFill=0;html=1;rounded=0;labelBackgroundColor=#ffffff;fontStyle=2;fontSize=9;" value="&lt;font style=&quot;font-size: 11px;&quot;&gt;&amp;lt;&amp;lt;use&amp;gt;&amp;gt;&lt;br&gt;EmailSender (future)&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1336" y="643" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend_notif" parent="1" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=6;rounded=1;strokeColor=#0050EF;strokeWidth=3;fillColor=#ffffff;fontSize=12;" value="Thick blue border = new in iteration 2 (Notification context: events, outbox, polling publisher, polling API). Match → events → Notification supersedes the direct Match → Notification Interface call (old edge kept, rerouted)." vertex="1">
+          <mxGeometry height="80" width="270" x="1546" y="835" as="geometry" />
+        </mxCell>
       </root>
     </mxGraphModel>
   </diagram>

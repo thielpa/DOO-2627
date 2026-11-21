@@ -12,6 +12,7 @@ import { friendChallengeRoutes } from "./routes/friend-challenges";
 import { healthRoutes } from "./routes/health";
 import { matchRoutes } from "./routes/matches";
 import { matchmakingRoutes } from "./routes/matchmaking";
+import { notificationRoutes } from "./routes/notifications";
 import { requireSameOriginForUnsafeMethods } from "./same-origin-unsafe";
 
 /** Wraps the handling of one request, e.g. to give it its own persistence context. */
@@ -56,7 +57,8 @@ export function createApp({ useCases, aroundRequest, orm }: AppDependencies) {
     .route("/api/matchmaking", matchmakingRoutes(useCases))
     .route("/api/categories", categoryRoutes(useCases))
     .route("/api/matches", matchRoutes(useCases))
-    .route("/api/friend-challenges", friendChallengeRoutes(useCases));
+    .route("/api/friend-challenges", friendChallengeRoutes(useCases))
+    .route("/api/notifications", notificationRoutes(useCases));
 }
 
 export type AppType = ReturnType<typeof createApp>;
