@@ -10,7 +10,8 @@ Players do not need to be online at the same time as their opponent: a match is 
 and each player has a deadline for their turn.
 
 Implemented so far (iteration 1): a 1vs1 match against a random opponent, with categories,
-questions, turn deadlines and match expiry.
+questions, turn deadlines and match expiry. In iteration 2, players are told about their turn and
+about the end of a match by in-app notifications (see 4.2).
 
 | Concern  | Choice                                                          |
 | -------- | --------------------------------------------------------------- |
@@ -93,6 +94,10 @@ questions, which several contexts read.
 - **`Tournament` owns `TournamentGroup` and `EliminationRound`.** The two phases have different
   structures, so each is its own owned object.
 - **`PlayMode` and `PlayerConnection`** were added for the change scenario in 4.1.
+- **Notification:** a **Notification** (type `TURN_PASSED`, `MATCH_COMPLETED` or `MATCH_EXPIRED`)
+  belongs to one recipient and refers to a match by ID only. It owns one **Delivery** per channel
+  (`IN_APP`, `EMAIL`) with a status (`PENDING`, `SENT`, `FAILED`). It was added for the change
+  scenario in 4.2.
 
 ---
 
@@ -120,15 +125,17 @@ The system is divided into four subsystems:
 | Gamification      | Score and leaderboard, badges, daily quests, rewards.                                                     |
 | Social            | Friends, results sharing, friend invitation notifications.                                                |
 | Real-Time Gateway | Live match session (WebSocket), presence and reconnection.                                                |
+| Notification      | Turns the match events into stored notifications, delivers them per channel, serves the bell (see 4.2).   |
 
-| From              | To                    | Trigger                           |
-| ----------------- | --------------------- | --------------------------------- |
-| Account / Profile | Matchmaking           | user logged in → select game mode |
-| Matchmaking       | Match / Gameplay      | match created                     |
-| Match / Gameplay  | Gamification          | match completed → calculate score |
-| Real-Time Gateway | Match / Gameplay      | answer received in a live match   |
-| Match, Social     | Notification Provider | question ready; friend invited    |
-| Account / Profile | Identity Provider     | login, create account             |
+| From              | To                    | Trigger                                                      |
+| ----------------- | --------------------- | ------------------------------------------------------------ |
+| Account / Profile | Matchmaking           | user logged in → select game mode                            |
+| Matchmaking       | Match / Gameplay      | match created                                                |
+| Match / Gameplay  | Gamification          | match completed → calculate score                            |
+| Real-Time Gateway | Match / Gameplay      | answer received in a live match                              |
+| Match, Social     | Notification Provider | question ready; friend invited                               |
+| Match / Gameplay  | Notification          | turn passed, match completed or expired (domain events, 4.2) |
+| Account / Profile | Identity Provider     | login, create account                                        |
 
 The API is layered (see [architecture.md](architecture.md)); the modules are folders inside the
 layers (e.g. `domain/match`, `domain/matchmaking`).
@@ -283,6 +290,333 @@ The analysis follows Khononov.
 
 **Implementation status: open.**
 
+### 4.2 In-app notifications
+
+> **"A player is told, inside the app, when something happens in their matches (their turn, a
+> finished match, an expired match), even if the player is not looking at that match."**
+
+#### 4.2.1 Context
+
+In iteration 1 the notification was only a `<<use>>` dependency on the external Notification
+Interface. In the new scenario the **Notification** bounded context is implemented:
+
+- The domain events of the match (`TurnPassed`, `MatchCompleted`, `MatchExpired`, see 5.2) create
+  a **Notification** for each affected player.
+- Each Notification has one **Delivery** per channel. Today only `IN_APP` exists; `EMAIL` is a
+  port without implementation.
+- The web client shows a bell with an unread counter and learns about new notifications by
+  polling.
+
+**Why this change is plausible.**
+
+- Players do not need to be online at the same time as their opponent (see 1), so they must be
+  told when the match needs them.
+- E-mail or push are a natural next request, so the context must accept new channels without
+  changing the rules that decide who is notified.
+- The Match context is owned by another team member, so the contract between both contexts must be
+  explicit and small.
+
+**Parts of the system affected.**
+
+| Part                                                 | Impact                                                               |
+| ---------------------------------------------------- | -------------------------------------------------------------------- |
+| Notification context (domain, application, infra)    | New: `Notification`, `Delivery`, handlers, relay, repository         |
+| Event contract (`domain/shared/events`)              | None: Notification uses the contract of the Match context as it is   |
+| Composition root (`main.ts`)                         | Small: three subscriptions and the relay job                         |
+| Backend API (HTTP)                                   | New: `GET /api/notifications` and `POST /api/notifications/:id/read` |
+| Client (React Web App)                               | Medium: bell, polling with cursor and backoff                        |
+| Database                                             | New tables `notification` and `notification_delivery`                |
+| Match / Gameplay, Matchmaking, Gamification, Account | None                                                                 |
+
+**Situation before the change.** Match and Social called the Notification Interface directly
+(`<<use>>` arrows in the component diagram). There was no stored notification, no read state and
+no guarantee that a notification is sent if, and only if, the match change was saved. A failure of
+the provider could break the player's move or silently lose the notification of a turn. Cohesion
+was low for notifications: the sending of messages was spread over the services that produce the
+facts.
+
+**Alternatives analysed.**
+
+- **A. Direct calls.** The Match use cases (or a handler in the match transaction) call the
+  provider for e-mail or push themselves.
+- **B. Notification context with event subscription, transactional outbox and polling.** The
+  context subscribes to the domain events, stores the Notification and its Deliveries in the
+  transaction of the match, and a relay sends them afterwards. The client polls a small REST API.
+- **C. Separate notification service with a message broker and push to the client.** Events go
+  through a broker (e.g. RabbitMQ or Kafka), and the client holds a WebSocket or SSE connection.
+
+#### 4.2.2 Coupling and cohesion
+
+The analysis follows Khononov, as in 4.1.
+
+**Integrations per alternative.**
+
+- **A. Direct calls.**
+  - _A1, Match use cases ↔ provider:_ Match decides when to notify, in which format and how often
+    to retry; every new channel changes match code.
+  - _A2, match transaction ↔ provider availability:_ a provider failure can break or lose a
+    notification, because the call cannot take part in the database transaction.
+- **B. Notification context + outbox + polling.**
+  - _B1, Notification handlers → event contract:_ the handlers know the events, not the Match
+    classes. The contract is versioned.
+  - _B2, handlers ↔ Notification model and outbox:_ the rules "who is told what" and the delivery
+    state live together in one module.
+  - _B3, relay → `DeliverySender` port:_ the relay knows only the port; channels are adapters.
+  - _B4, client → REST API:_ the client knows an HTTP interface with a cursor, not the database.
+- **C. Separate service with a broker.**
+  - _C1, Match → broker → Notification service:_ events become messages between deployables; the
+    contract is the same as in B1, but with a network between the two.
+  - _C2, Match database ↔ broker:_ the message and the match change must be saved together, which
+    needs an outbox anyway.
+
+| Integration                      | Strength   | Distance         | Volatility | Result                             |
+| -------------------------------- | ---------- | ---------------- | ---------- | ---------------------------------- |
+| A1 Match ↔ provider              | model      | external system  | high       | **Global complexity**              |
+| A2 Match transaction ↔ provider  | functional | external system  | high       | **Global complexity**              |
+| B1 Handlers → event contract     | contract   | other module     | low        | Balanced (loose coupling)          |
+| B2 Handlers ↔ Notification model | functional | same module      | high       | Balanced (cohesion)                |
+| B3 Relay → `DeliverySender`      | contract   | same module      | high       | Balanced (loose coupling)          |
+| B4 Client → REST API             | contract   | other deployable | low        | Balanced (loose coupling)          |
+| C1 Match → broker → Notification | contract   | separate service | low        | Balanced, high infra cost          |
+| C2 Match database ↔ broker       | functional | separate system  | high       | **Global complexity** (dual write) |
+
+**Summary.**
+
+| Criterion                              | A                          | B                             | C                              |
+| -------------------------------------- | -------------------------- | ----------------------------- | ------------------------------ |
+| Balance                                | Global complexity (A1, A2) | Balanced                      | Dual write needs an outbox too |
+| Notification sent if and only if saved | No                         | Yes (same transaction)        | Only with an outbox            |
+| Effort and new infrastructure          | Low at first, high later   | Medium, no new infrastructure | High (broker, push gateway)    |
+| Test without network                   | Hard                       | Good                          | Medium                         |
+
+**Cohesion.**
+
+| Criterion                          | Before (direct `<<use>>` calls)       | After (Notification context)                               |
+| ---------------------------------- | ------------------------------------- | ---------------------------------------------------------- |
+| Responsibility of Match            | Rules **and** the sending of messages | Only rules; it publishes events                            |
+| Responsibility of Notification     | Does not exist                        | Create, store, deliver and read notifications (functional) |
+| Reasons for Notification to change | -                                     | New channel, new notification type, delivery policy        |
+| Repeated rules                     | Each service decides when to notify   | One place maps events to recipients                        |
+
+#### 4.2.3 Decision and consequences
+
+> **Alternative B was chosen:** a **Notification context** that subscribes to the domain events of
+> the Match context, stores each Notification with its Deliveries as a **transactional outbox**,
+> and is read by the client through a **polling API with a cursor**.
+
+**Justification.**
+
+1. **Strong coupling stays close (B2, B3).** The rules for recipients, the delivery state and the
+   senders are in one module.
+2. **Weak coupling across the distance (B1, B4).** Notification depends only on the event contract
+   and the client only on a small REST interface. The Biome rule of D6 makes this a CI check.
+3. **Sent if and only if saved.** The outbox rows are written in the transaction of the match; no
+   distributed transaction is needed.
+4. **No new infrastructure.** The relay is a polling job on the existing database. C remains
+   possible later: only the transport changes.
+
+**Pattern references.** The context is built around the _Transactional Outbox_
+([microservices.io](https://microservices.io/patterns/data/transactional-outbox.html)). Its terms
+are used in the code and diagrams: _Sender_ (the code that changes the state), _Database_,
+_Message outbox_ (a table that stores the messages) and _Message relay_ (a process that reads the
+outbox and publishes). The pattern guarantees that messages are sent if and only if the
+transaction commits. The relay has two known implementations, _Polling publisher_ and
+_Transaction log tailing_; because it "may publish a message more than once", consumers must be
+idempotent. For the client we follow Anubhav, [_System Design Day 14: Polling — The Simplest
+Communication Pattern in Distributed Systems_](https://medium.com/@anubhav020909/system-design-day-14-polling-the-simplest-communication-pattern-in-distributed-systems-ebd78057e9eb)
+(Medium, 29/12/2025): fixed-interval polling is simple and plain HTTP, and it fits infrequent
+updates, no strict real-time need and moderate scale. In the records below, **Outbox** means the
+first source and **Polling** the second. How each pattern appears in the code is in 5.4 to 5.9.
+
+##### D1. Event contract between Match and Notification
+
+| Option                                                                 | Assessment                                                     |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------- |
+| A. Notification calls Match code or queries its tables                 | Direct coupling to another context, no isolation               |
+| B. Own event contract defined by Notification                          | Two contracts for the same facts; the publisher owns the facts |
+| C. **Use the contract of the Match context in `domain/shared/events`** | One contract, versioned, already published by its owner        |
+
+**Choice: C.** Notification subscribes to `TurnPassed`, `MatchCompleted` and `MatchExpired` with
+`InProcessEventDispatcher.subscribe` in `main.ts`. It imports only `domain/shared/events`.
+The contract is described in [events.md](events.md); the types are the authority.
+
+**Rationale.** An early draft of the contract was replaced by the one the Match context published,
+which has the same purpose and more detail (for example `TurnPassed.deadline`). The cost of the
+change was one module of handlers, which shows that the isolation of D6 works.
+
+##### D2. Handlers run in the match transaction, deliveries go through the outbox
+
+| Option                                                                                  | Assessment                                                             |
+| --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| A. Handler sends the message itself                                                     | The transaction can still roll back; a failing provider fails the move |
+| B. In-app notification visible when saved; only e-mail uses the relay                   | Two code paths; the in-app channel would not exercise the pattern      |
+| C. **Handler saves Notification + `PENDING` Deliveries; the relay sends every channel** | One path for all channels; a new channel needs only a new sender       |
+
+**Choice: C.** The handlers run inside the transaction of the use case that dispatched the event
+(the dispatcher is called after `save`, see 5.2), so the match change and its notifications are
+saved together or not at all. `InAppSender` only succeeds and marks the delivery `SENT`. Read is a
+separate state (`readAt`): a notification can be sent and unread.
+
+**Rationale.** The table of `Delivery` rows with status `PENDING` is the Message outbox, the job is
+the Message relay (Outbox). A handler that only writes rows is fast and cannot fail because of an
+external system, which was the restriction found in 5.2.
+
+##### D3. What the Notification stores
+
+| Option                                                              | Assessment                                |
+| ------------------------------------------------------------------- | ----------------------------------------- |
+| A. Only the type and an id; read the rest from Match when shown     | Cross-context queries; breaks isolation   |
+| B. Final text stored in the database                                | Fixes language and wording in the backend |
+| C. **Type, `eventId`, `recipientId`, `matchId` and a small `data`** | Self-contained, no cross-context query    |
+
+**Choice: C.** The `data` of each type is a small flat object, from the point of view of the
+recipient: `TURN_PASSED` has `roundNumber`, `fromPlayerId` and `deadline`; `MATCH_COMPLETED` has
+`outcome` (`WON`, `LOST`, `DRAW`) and `winnerId`; `MATCH_EXPIRED` has `outcome` (`WON`, `LOST`,
+`NO_WINNER`), `winnerId` and `missedByPlayerId`. The text is built in the client from `type` and
+`data`.
+
+**Rationale.** The context must be readable without asking Match. An expired match where nobody
+answered has no winner (rule of the Match context), so it is `NO_WINNER`, not a draw. Text stays in
+the client, where language and wording change often.
+
+##### D4. Message relay and retries
+
+| Option                                                            | Assessment (Outbox)                                                      |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| A. Transaction log tailing                                        | No delay, but needs database-specific tooling (CDC) and infrastructure   |
+| B. **Polling publisher, fixed-interval retries, at most N tries** | Plain SQL on the current database; the cost is a small delay and queries |
+| C. Polling publisher with exponential backoff per delivery        | Fewer wasted attempts, but needs a `nextAttemptAt` column and more rules |
+
+**Choice: B.** An interval job started in `main.ts` (`NOTIFICATION_RELAY_INTERVAL_MS`, default
+1000) selects `PENDING` deliveries in batches with `FOR UPDATE SKIP LOCKED` inside a transaction,
+tries each once through the sender of its channel and records the result. A failure counts an
+attempt; after `NOTIFICATION_MAX_ATTEMPTS` (default 5) the delivery is `FAILED` (terminal). A cycle
+never overlaps with the previous one.
+
+**Rationale.** The load is low (a few notifications per match). `SKIP LOCKED` lets two API
+instances run the relay without taking the same row. If the volume grows, the relay can be replaced
+by log tailing without changing handlers or senders. Backoff is a step for a real external channel.
+
+##### D5. Idempotency
+
+| Option                                                              | Assessment                                                               |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| A. Check in the handler (`exists`), unique constraint as backstop   | Race: the losing insert fails and, in the match transaction, aborts it   |
+| B. Savepoint per handler in the dispatcher                          | The dispatcher of the Match context does not do this; it would change it |
+| C. **`INSERT ... ON CONFLICT (event_id, recipient_id) DO NOTHING`** | Atomic, no error, no change to the dispatcher                            |
+
+**Choice: C.** `NotificationRepository.addIfAbsent` inserts the notification and, only when the row
+was inserted, its deliveries. A duplicate returns `false` and is ignored. The `Delivery.id` is the
+idempotency key passed to senders.
+
+**Rationale.** The relay and the dispatcher are at-least-once, so consumers must be idempotent
+(Outbox). A duplicate must never roll back the match change: a savepoint in the dispatcher was
+considered and dropped, because the in-process dispatcher does not provide it and the database can
+solve the case alone. Ordering between notifications is not guaranteed, which is acceptable since
+each is independent and the list is ordered by when it became visible (D7).
+
+##### D6. Isolation enforced by tool
+
+| Option                                      | Assessment                                   |
+| ------------------------------------------- | -------------------------------------------- |
+| A. Convention in the documentation          | Easy to break in a review that is in a hurry |
+| B. **Biome `noRestrictedImports` override** | Fails the CI when the rule is broken         |
+
+**Choice: B.** An override in the root `biome.json` for the notification files forbids imports of
+`domain/match`, `domain/matchmaking` and the barrels that re-export them. Allowed: `domain/shared`
+(events, errors) and the notification code itself.
+
+**Rationale.** D1 is only worth something if it is enforced: low coupling is checked by
+`bunx biome ci .`, not by memory.
+
+##### D7. Polling API: cursor, no ETag
+
+| Option                         | Assessment (Polling)                                               |
+| ------------------------------ | ------------------------------------------------------------------ |
+| A. Always return the full list | Simple, but repeats data and the cost grows with the history       |
+| B. **Cursor (`since`)**        | Returns only new items; an idle poll is a small body with no items |
+| C. Cursor and ETag / `304`     | Saves a few bytes more, but needs server state and client logic    |
+
+**Choice: B.** `GET /api/notifications?since=<cursor>&limit=<1..50, default 20>` returns
+`{ items, unreadCount, cursor }`. The cursor is opaque: the position `(sentAt, id)` of the newest
+item returned, and it stays the same if nothing is new. Items are ordered by the `sentAt` of the
+`IN_APP` delivery, then by `id`. With `since`, the server returns the **oldest** `limit` items after
+the cursor (shown newest first) and the cursor moves to the newest of them, so a backlog larger
+than `limit` arrives over successive polls with no gap. `POST /api/notifications/:id/read` returns
+`204`, is idempotent, and answers `404` when the notification is not the caller's.
+
+**Rationale.** Sorting by `createdAt` would be wrong: an item is visible only after the relay sent
+it, so one created earlier but sent later would land behind the client cursor and never be
+returned. With `sentAt` the stream only grows at its end, as a cursor needs. ETag was built first
+and then removed (see 5.9): with the cursor an idle poll is already tiny, and the ETag doubled the
+client logic.
+
+##### D8. Client polling policy
+
+| Option                                                 | Assessment (Polling)                                 |
+| ------------------------------------------------------ | ---------------------------------------------------- |
+| A. Short polling (around 300 ms)                       | Called an anti-pattern: load without benefit         |
+| B. Long polling, SSE or WebSocket now                  | Connection handling; too much for infrequent updates |
+| C. **Fixed interval, 5 s, with cursor, a lean client** | Simplest, plain HTTP, no extra infrastructure        |
+
+**Choice: C.** React Query polls every 5 s with `since`, merges new items on top (deduplicated by
+`id`) and takes `unreadCount` from the server. It pauses when the tab is hidden
+(`refetchIntervalInBackground: false`), makes a **full resync** (no `since`) when the window gets
+focus and after marking as read, and backs off on errors (5 s, 10 s, 20 s, up to 60 s, back to 5 s
+after a success). The cache keeps the newest 20 items, the size of a full page of the server
+(`NOTIFICATIONS_PAGE_SIZE`, equal to the server default `DEFAULT_LIMIT`, below its maximum).
+
+**Rationale.** A turn-based game has infrequent updates and moderate scale, where Polling says that
+polling fits. The client is deliberately small (one small file, `apps/web/src/lib/notifications.ts`). **Evolution path:** when
+scale or latency demand it, replace polling by push (SSE or WebSocket); the outbox, handlers,
+`Notification` model and API view stay, and the Real-Time Gateway (4.1) is a possible host.
+
+##### D9. Cursor on `sentAt` and the multi-relay risk
+
+`sentAt` is set by the relay inside its transaction. If two relays run at the same time, relay X
+may take `sentAt = t1` but commit after relay Y committed an item with `t2 > t1` and a client has
+polled past `t2`; the item of X is then behind the cursor.
+
+| Option                                  | Assessment                                                                              |
+| --------------------------------------- | --------------------------------------------------------------------------------------- |
+| A. Cursor lookback (overlap window)     | More data per poll, and the window must exceed the longest relay transaction            |
+| B. Periodic full resync on the client   | Safety net, but more requests and more client state                                     |
+| C. **Accept the risk, resync on focus** | No extra code. Today a single in-process relay with an overlap guard, so no race exists |
+
+**Choice: C.** **Accepted risk:** with several relays an item may appear only after the next focus
+resync. If the API is scaled out, option A is the next step.
+
+**Accepted costs.**
+
+- Delivery is **eventually consistent**: a notification appears after the next relay cycle (about
+  1 s) and the next client poll (up to 5 s).
+- Duplicates are possible at the relay, so consumers and senders must be idempotent.
+- Polling creates constant (small) traffic, one request per open tab every 5 s.
+- The handlers run in the request of the match: if one fails, the move fails (see 5.2).
+
+**Open points.**
+
+- Retention of old notifications and a limit of the table size.
+- When to add the `EMAIL` channel, and a backoff policy for it.
+- When to replace polling by SSE or WebSocket.
+- Several relays: cursor lookback (D9).
+
+**Effect on the diagrams.**
+
+| Decision                                                                              | Where it appears                                        |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `Notification`, `Delivery`, `NotificationType`, `DeliveryChannel`, `DeliveryStatus`   | `DomainModel.drawio` (package Notification)             |
+| Notification Service (handlers, repository / outbox, message relay, `DeliverySender`) | `ComponentDiagram.drawio`                               |
+| Match → events → Notification handlers → outbox → relay                               | `ComponentDiagram.drawio`                               |
+| Web client → `GET /api/notifications`, `POST /api/notifications/:id/read`             | `ComponentDiagram.drawio` (Notifications API interface) |
+
+The old arrows Match → Notification Interface and Social → Notification Interface were kept but
+rerouted; the external Notification Interface is reused (future `EmailSender`). The label of the
+polling arrow in `ComponentDiagram.drawio` still says "cursor + ETag" and is out of date: it will be
+corrected when the diagram is exported again (the PDFs were not regenerated for iteration 2).
+
+**Implementation status: implemented (iteration 2).**
+
 ---
 
 ## 5. Existing design pattern instances
@@ -385,15 +719,15 @@ the same transaction.
 
 **Mapping to the implementation.**
 
-| Pattern role                | Concrete implementation                                                                                                                                                                                                                                                                                                                                                                     | Explanation                                                                                                                     |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Event contract              | [`DomainEvent`](../apps/api/src/domain/shared/events/domain-event.ts#L8); [`TurnPassed`](../apps/api/src/domain/shared/events/match-events.ts#L7), [`MatchCompleted`](../apps/api/src/domain/shared/events/match-events.ts#L19), [`MatchExpired`](../apps/api/src/domain/shared/events/match-events.ts#L32), union [`MatchEvent`](../apps/api/src/domain/shared/events/match-events.ts#L42) | `eventId`, `type`, `version`, `occurredAt` plus event data. Kept outside the Match context, so subscribers do not depend on it. |
-| Publisher (aggregate)       | [`Match.recordEvent`](../apps/api/src/domain/match/match.ts#L350-L353), called in [`expireIfOverdue`](../apps/api/src/domain/match/match.ts#L240), [`completeRound`](../apps/api/src/domain/match/match.ts#L306) and [`passTurn`](../apps/api/src/domain/match/match.ts#L327)                                                                                                               | The match decides _what_ happened; it gives each event its `eventId`.                                                           |
-| Collected events            | [`_events`](../apps/api/src/domain/match/match.ts#L27), [`pullEvents`](../apps/api/src/domain/match/match.ts#L300)                                                                                                                                                                                                                                                                          | Not persisted. `pullEvents` empties the list, so each event is dispatched only once.                                            |
-| Dispatcher interface (port) | [`EventDispatcher`](../apps/api/src/application/event-dispatcher.ts#L8-L10)                                                                                                                                                                                                                                                                                                                 | In the application layer, so the domain has no dependency on it.                                                                |
-| Dispatch point              | [`AnswerQuestion`](../apps/api/src/application/answer-question.ts#L33-L35), [`ExpireOverdueMatches`](../apps/api/src/application/expire-overdue-matches.ts#L28-L29)                                                                                                                                                                                                                         | After `save`, inside the transaction.                                                                                           |
-| Dispatcher                  | [`InProcessEventDispatcher`](../apps/api/src/infrastructure/events/in-process-event-dispatcher.ts#L11): [`subscribe`](../apps/api/src/infrastructure/events/in-process-event-dispatcher.ts#L14), [`dispatch`](../apps/api/src/infrastructure/events/in-process-event-dispatcher.ts#L23)                                                                                                     | Handlers per event type, called one after another in subscription order.                                                        |
-| Handler                     | [`DomainEventHandler`](../apps/api/src/infrastructure/events/in-process-event-dispatcher.ts#L4); subscriptions in [`main.ts`](../apps/api/src/main.ts#L16-L20)                                                                                                                                                                                                                              | A function; for now the handlers only log. Notifications and gamification will subscribe here.                                  |
+| Pattern role                | Concrete implementation                                                                                                                                                                                                                                                                                                                                                                     | Explanation                                                                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Event contract              | [`DomainEvent`](../apps/api/src/domain/shared/events/domain-event.ts#L8); [`TurnPassed`](../apps/api/src/domain/shared/events/match-events.ts#L7), [`MatchCompleted`](../apps/api/src/domain/shared/events/match-events.ts#L19), [`MatchExpired`](../apps/api/src/domain/shared/events/match-events.ts#L32), union [`MatchEvent`](../apps/api/src/domain/shared/events/match-events.ts#L42) | `eventId`, `type`, `version`, `occurredAt` plus event data. Kept outside the Match context, so subscribers do not depend on it.  |
+| Publisher (aggregate)       | [`Match.recordEvent`](../apps/api/src/domain/match/match.ts#L350-L353), called in [`expireIfOverdue`](../apps/api/src/domain/match/match.ts#L240), [`completeRound`](../apps/api/src/domain/match/match.ts#L306) and [`passTurn`](../apps/api/src/domain/match/match.ts#L327)                                                                                                               | The match decides _what_ happened; it gives each event its `eventId`.                                                            |
+| Collected events            | [`_events`](../apps/api/src/domain/match/match.ts#L27), [`pullEvents`](../apps/api/src/domain/match/match.ts#L300)                                                                                                                                                                                                                                                                          | Not persisted. `pullEvents` empties the list, so each event is dispatched only once.                                             |
+| Dispatcher interface (port) | [`EventDispatcher`](../apps/api/src/application/event-dispatcher.ts#L8-L10)                                                                                                                                                                                                                                                                                                                 | In the application layer, so the domain has no dependency on it.                                                                 |
+| Dispatch point              | [`AnswerQuestion`](../apps/api/src/application/answer-question.ts#L33-L35), [`ExpireOverdueMatches`](../apps/api/src/application/expire-overdue-matches.ts#L28-L29)                                                                                                                                                                                                                         | After `save`, inside the transaction.                                                                                            |
+| Dispatcher                  | [`InProcessEventDispatcher`](../apps/api/src/infrastructure/events/in-process-event-dispatcher.ts#L11): [`subscribe`](../apps/api/src/infrastructure/events/in-process-event-dispatcher.ts#L14), [`dispatch`](../apps/api/src/infrastructure/events/in-process-event-dispatcher.ts#L23)                                                                                                     | Handlers per event type, called one after another in subscription order.                                                         |
+| Handler                     | [`DomainEventHandler`](../apps/api/src/infrastructure/events/in-process-event-dispatcher.ts#L4); subscriptions in [`main.ts`](../apps/api/src/main.ts#L16-L20)                                                                                                                                                                                                                              | A function. The Notification context subscribes three handlers here (see 4.2 and 5.4); gamification will subscribe the same way. |
 
 **Illustration:** structure. Neither `Match` nor the events depend on `EventDispatcher`; only the
 use cases do, and only the infrastructure implements it.
@@ -490,7 +824,8 @@ sequenceDiagram
 _Alternatives:_ direct calls from the use cases (simple, but couples the match context to every
 receiver). A static `DomainEvents.raise()` inside the domain makes the domain depend on a global dispatcher. A _Transactional Outbox_
 (Richardson, _Microservices Patterns_) stores the events in the same transaction and delivers
-them afterwards. It is the next step once a handler has to call an external system.
+them afterwards. The Notification context uses it for the delivery to its channels (see 5.5), so
+its handlers only write rows and never call an external system.
 
 ### 5.3 One rule for overdue matches, in the domain and in the database — Specification
 
@@ -581,6 +916,296 @@ Postgres repository and against the domain.
 
 _Remaining:_ three more rules are still written in several places (see 6.1).
 
+### 5.4 Patterns of the Notification context — overview
+
+The Notification context (4.2) uses the patterns below. 5.2 describes the Domain Event pattern
+and its in-process dispatcher, which this context only subscribes to; 5.5 to 5.8 describe the
+others in the same form as 5.1 to 5.3; 5.9 lists patterns that were considered and not adopted.
+
+| Pattern                                  | Problem it solves here                                                 | Where in the code                                                                                                                                                                                                                                       | Main trade-off                                                          |
+| ---------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Domain Events, publish/subscribe (5.2)   | Notify without Match knowing the Notification context                  | [`domain/shared/events`](../apps/api/src/domain/shared/events/match-events.ts), [`InProcessEventDispatcher`](../apps/api/src/infrastructure/events/in-process-event-dispatcher.ts), subscriptions in [`main.ts`](../apps/api/src/main.ts)               | Synchronous, in the request; a failing handler fails the move           |
+| Transactional Outbox (5.5)               | Save the match change and its notifications together, never one only   | [`NotificationRecorder`](../apps/api/src/application/notification/notify.ts) (Sender), table `notification_delivery` (Message outbox), [`RelayPendingDeliveries`](../apps/api/src/application/notification/relay-pending-deliveries.ts) (Message relay) | Delivery is delayed by one relay cycle; at-least-once                   |
+| Polling Publisher (5.5)                  | Move the rows from the outbox to the channels without new infra        | [`startNotificationRelayJob`](../apps/api/src/jobs/notification-relay-job.ts), `claimPendingDeliveries` with `FOR UPDATE SKIP LOCKED`                                                                                                                   | Repeated queries and a delay; replaceable by log tailing                |
+| Idempotent Consumer (5.6)                | Redelivered events must not duplicate notifications or abort the match | `NotificationRepository.addIfAbsent` in [`mikro-orm-notification.repository.ts`](../apps/api/src/infrastructure/persistence/repositories/mikro-orm-notification.repository.ts), unique `(event_id, recipient_id)`                                       | Plain SQL next to the ORM for one method                                |
+| Ports and Adapters, Strategy-like (5.7)  | Add channels (e-mail) without changing the relay                       | [`DeliverySender`](../apps/api/src/domain/notification/delivery-sender.ts) (port), [`InAppSender`](../apps/api/src/application/notification/in-app-sender.ts) (adapter), `EmailSender` (future)                                                         | One more interface; the in-app adapter does nothing yet                 |
+| Aggregate and Repository (5.8)           | Keep `Notification` and its `Delivery` rows consistent                 | [`Notification`](../apps/api/src/domain/notification/notification.ts), [`Delivery`](../apps/api/src/domain/notification/delivery.ts), [`NotificationRepository`](../apps/api/src/domain/notification/repositories.ts)                                   | The repository needs raw SQL for insert-if-absent and for the claim     |
+| Fixed-interval polling with cursor (5.9) | Keep the bell up to date without push infrastructure                   | [`ListNotifications`](../apps/api/src/application/notification/list-notifications.ts), [`cursor.ts`](../apps/api/src/application/notification/cursor.ts), [`notifications.ts`](../apps/web/src/lib/notifications.ts)                                    | Constant small traffic; up to about 5 s of delay; multi-relay risk (D9) |
+| Published Language, enforced by tooling  | Keep the contexts apart while they share a deployable                  | Event contract in `domain/shared/events`; the `noRestrictedImports` overrides in [`biome.json`](../biome.json)                                                                                                                                          | A lint rule must be kept up to date with the folder structure           |
+
+### 5.5 Telling the player without tying delivery to the match transaction — Transactional Outbox with Polling Publisher
+
+#### Problem in context
+
+When a turn passes, the player whose turn it is must be notified. The notification may only exist
+if the match change was saved (else the player is told about something that did not happen), and a
+saved match change must not lose its notification. A call to an external system inside the
+transaction cannot be rolled back, and a call after the commit can be lost if the process dies.
+Writing to the database and to a channel are two writes with no common transaction (a _dual
+write_).
+
+#### The pattern: selection and implementation
+
+**Pattern and rationale.** _Transactional Outbox_ (Richardson,
+[microservices.io](https://microservices.io/patterns/data/transactional-outbox.html)): the message
+is stored in a table of the same database, in the same transaction as the state change; a _Message
+relay_ later reads the table and publishes. We use the _Polling publisher_ variant of the relay:
+a job that queries the table at an interval. It needs no new infrastructure, unlike _transaction
+log tailing_.
+
+**Mapping to the implementation.**
+
+| Pattern role      | Concrete implementation                                                                                                                                                                                                                                                                                                                                                       | Explanation                                                                                     |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Sender            | [`notifyOnTurnPassed`](../apps/api/src/application/notification/notify-on-turn-passed.ts), [`notifyOnMatchCompleted`](../apps/api/src/application/notification/notify-on-match-completed.ts), [`notifyOnMatchExpired`](../apps/api/src/application/notification/notify-on-match-expired.ts), via [`NotificationRecorder`](../apps/api/src/application/notification/notify.ts) | Handlers run in the match transaction and write the Notification and its `PENDING` Deliveries.  |
+| Message outbox    | Table `notification_delivery`, rows with status `PENDING` ([schema](../apps/api/src/infrastructure/persistence/schemas/notification.schema.ts)); a partial index serves the relay query                                                                                                                                                                                       | The outbox is part of the model: a `Delivery` is a message with state and attempt count.        |
+| Message relay     | [`RelayPendingDeliveries`](../apps/api/src/application/notification/relay-pending-deliveries.ts)                                                                                                                                                                                                                                                                              | One cycle: claim a batch, one attempt each, record the result, in one transaction.              |
+| Polling publisher | [`startNotificationRelayJob`](../apps/api/src/jobs/notification-relay-job.ts), started in [`main.ts`](../apps/api/src/main.ts); `claimPendingDeliveries` uses `FOR UPDATE SKIP LOCKED`                                                                                                                                                                                        | Interval `NOTIFICATION_RELAY_INTERVAL_MS` (1000); a `running` flag prevents overlapping cycles. |
+| Retry policy      | `Delivery.recordFailure(error, at, maxAttempts)`                                                                                                                                                                                                                                                                                                                              | Fixed interval: one attempt per cycle; after 5 attempts the delivery is `FAILED`.               |
+
+**Illustration:** behaviour. The match move and the outbox rows are one commit; the relay is a
+second, independent transaction.
+
+```mermaid
+sequenceDiagram
+  participant UC as :AnswerQuestion
+  participant D as :InProcessEventDispatcher
+  participant H as :notifyOnTurnPassed
+  participant R as :NotificationRepository
+  participant J as :RelayJob
+  participant S as :InAppSender
+  critical transaction of the match move
+    UC->>+D: dispatch([TurnPassed])
+    D->>+H: handle(TurnPassed)
+    H->>+R: addIfAbsent(Notification + Delivery PENDING)
+    R-->>-H: true
+    H-->>-D: done
+    D-->>-UC: done
+  end
+  loop every NOTIFICATION_RELAY_INTERVAL_MS
+    critical transaction of one relay cycle
+      J->>+R: claimPendingDeliveries(batch) FOR UPDATE SKIP LOCKED
+      R-->>-J: deliveries
+      J->>S: send(idempotencyKey = Delivery.id)
+      J->>R: save(delivery SENT or attempts+1)
+    end
+  end
+```
+
+#### Consequences and alternatives
+
+- **+** A notification exists if and only if the match change was committed, without a
+  distributed transaction.
+- **+** A failing or slow channel never fails a player's move; the relay retries.
+- **+** One path for every channel, including the in-app one.
+- **−** Eventual consistency: a delay of one relay cycle (about 1 s) before the notification is
+  visible.
+- **−** At-least-once: the relay may send a message twice, so senders must use the idempotency key
+  (the `Delivery.id`).
+- **−** The relay runs in the same process as the API; with several instances, `SKIP LOCKED`
+  prevents double sends but not the cursor race of D9.
+
+_Alternatives:_ _transaction log tailing_ (no polling delay, but needs CDC tooling and
+infrastructure); sending from the handler (simple, but not atomic); a message broker (see 5.9).
+
+### 5.6 A repeated event must not duplicate a notification nor abort the match — Idempotent Consumer
+
+#### Problem in context
+
+The dispatcher and the relay deliver at least once, so a handler can see the same `eventId` again.
+The first design checked "does a notification exist for this event and recipient" and relied on a
+unique constraint as backstop. Under concurrency both checks pass, the second insert violates the
+constraint, and since the handler runs inside the match transaction, the failure would roll back
+the **match move** because of a duplicate notification.
+
+#### The pattern: selection and implementation
+
+**Pattern and rationale.** _Idempotent Consumer_ (Richardson, _Microservices Patterns_): the
+consumer records the identity of the messages it handled and ignores a repeated one. The identity
+is `(eventId, recipientId)`, since one event notifies two players. The decision is left to the
+database with `INSERT ... ON CONFLICT (event_id, recipient_id) DO NOTHING`, which is atomic and
+does not abort the PostgreSQL transaction.
+
+**Mapping to the implementation.**
+
+| Pattern role      | Concrete implementation                                                                                                                                                                                                     | Explanation                                                                                       |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Message identity  | `eventId` of [`DomainEvent`](../apps/api/src/domain/shared/events/domain-event.ts) plus `recipientId`                                                                                                                       | Stored on the `Notification`.                                                                     |
+| Duplicate guard   | Unique `notification_event_recipient_unique` in the [schema](../apps/api/src/infrastructure/persistence/schemas/notification.schema.ts)                                                                                     | The database is the single judge, so concurrent requests are safe.                                |
+| Insert if absent  | [`NotificationRepository.addIfAbsent`](../apps/api/src/domain/notification/repositories.ts) and its [MikroORM implementation](../apps/api/src/infrastructure/persistence/repositories/mikro-orm-notification.repository.ts) | Inserts the Deliveries only if the Notification row was inserted; returns `false` on a duplicate. |
+| Consumer          | [`NotificationRecorder.record`](../apps/api/src/application/notification/notify.ts)                                                                                                                                         | Ignores the result: a duplicate is a normal outcome, not an error.                                |
+| Idempotent sender | `DeliveryRequest.idempotencyKey` = `Delivery.id`                                                                                                                                                                            | Same idea on the output side: a repeated key is the same delivery.                                |
+
+#### Consequences and alternatives
+
+- **+** A duplicate never aborts the match transaction and needs no help from the dispatcher.
+- **+** No separate table of processed ids: the notification itself is the record.
+- **−** Plain SQL beside the Unit of Work for one method; the in-memory repository used in the
+  tests must imitate the behaviour (a Postgres integration test covers the real one).
+- **−** The key is one per recipient and event, so an event cannot create two notifications of
+  different types for the same person.
+
+_Alternatives:_ a check in code plus the constraint (race, see above); a _savepoint per handler_ in
+the dispatcher, which the dispatcher does not do and would put a rule of the Notification context
+into the Match infrastructure (see 5.9).
+
+### 5.7 New channels without changing the relay — Ports and Adapters with Strategy-like senders
+
+#### Problem in context
+
+Today a notification is only shown in the bell, but e-mail or push are the likely next channels.
+The relay must not know how a channel works, and adding one must not change the rules that create
+notifications.
+
+#### The pattern: selection and implementation
+
+**Pattern and rationale.** _Ports and Adapters_ (Cockburn): the domain declares the interface it
+needs (`DeliverySender`), the outer layers implement it. Each sender is a _Strategy_ for one
+channel, and the relay selects it by data, the `channel` of the delivery. It is Strategy-like
+because there is no separate context class: the relay itself is the context, and the selection is
+a lookup in a list of senders, not a configured object.
+
+**Mapping to the implementation.**
+
+| Pattern role     | Concrete implementation                                                                                   | Explanation                                                                                             |
+| ---------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Port             | [`DeliverySender`](../apps/api/src/domain/notification/delivery-sender.ts): `channel` and `send(request)` | In the domain; the request carries the idempotency key and the notification.                            |
+| Adapter, current | [`InAppSender`](../apps/api/src/application/notification/in-app-sender.ts)                                | "Sending" is making the notification visible; it always succeeds.                                       |
+| Adapter, future  | `EmailSender` (not implemented)                                                                           | Would call the external Notification Provider of the component diagram.                                 |
+| Context          | [`RelayPendingDeliveries`](../apps/api/src/application/notification/relay-pending-deliveries.ts)          | Finds the sender with `senders.find(s => s.channel === delivery.channel)`; none means a failed attempt. |
+| Configuration    | [`createNotificationUseCases`](../apps/api/src/application/notification/index.ts), option `senders`       | Defaults to the in-app sender only.                                                                     |
+
+**Illustration:** structure.
+
+```mermaid
+classDiagram
+  direction LR
+  class DeliverySender {
+    <<interface>>
+    +channel: DeliveryChannel
+    +send(request) void
+  }
+  class InAppSender
+  class EmailSender {
+    <<future>>
+  }
+  class RelayPendingDeliveries {
+    +execute() RelayResult
+  }
+  class Delivery {
+    +channel
+    +status
+    +attempts
+  }
+  InAppSender ..|> DeliverySender
+  EmailSender ..|> DeliverySender
+  RelayPendingDeliveries --> DeliverySender : by channel
+  RelayPendingDeliveries ..> Delivery : claims
+```
+
+#### Consequences and alternatives
+
+- **+** A new channel is a new class and an entry in the list of senders; the handlers, the model
+  and the relay do not change.
+- **+** The relay is tested with a fake sender that fails.
+- **−** One more interface, and the only adapter today does nothing, so the port is not yet proven
+  by a second implementation.
+- **−** Channels share the retry policy of the relay. E-mail may need its own (see 5.9).
+
+_Alternatives:_ an `if (channel === "EMAIL")` in the relay (simple, but every channel changes it);
+a full Strategy with a registry class (more structure than two channels need).
+
+### 5.8 One consistency unit for a notification and its deliveries — Aggregate and Repository
+
+#### Problem in context
+
+A notification and its deliveries must change together: the relay records the outcome of a
+delivery and the visible time of the notification in one step, and a notification is
+read at most once. The rules (a delivery is final after `SENT` or `FAILED`, channels are unique,
+the first read time is kept) must not be spread over use cases.
+
+#### The pattern: selection and implementation
+
+**Pattern and rationale.** _Aggregate_ (Evans) with `Notification` as the root and `Delivery` as an
+owned entity, and _Repository_ (as in 5.1) as the port to load and save it. Outside code changes
+a delivery only through the root.
+
+**Mapping to the implementation.**
+
+| Pattern role    | Concrete implementation                                                                                                                                                                                                               | Explanation                                                                                              |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Aggregate root  | [`Notification`](../apps/api/src/domain/notification/notification.ts): `create`, `markRead`, `recordDeliverySuccess`, `recordDeliveryFailure`                                                                                         | Validates its invariants; `isVisibleInApp` and `visibleAt` derive visibility from the `IN_APP` delivery. |
+| Owned entity    | [`Delivery`](../apps/api/src/domain/notification/delivery.ts): `PENDING`, `SENT`, `FAILED`                                                                                                                                            | `recordSuccess` and `recordFailure` reject a delivery that is not `PENDING`.                             |
+| Repository port | [`NotificationRepository`](../apps/api/src/domain/notification/repositories.ts)                                                                                                                                                       | Named in domain terms: `addIfAbsent`, `listForRecipient`, `claimPendingDeliveries`.                      |
+| Adapter         | [`MikroOrmNotificationRepository`](../apps/api/src/infrastructure/persistence/repositories/mikro-orm-notification.repository.ts) with the [`EntitySchema`](../apps/api/src/infrastructure/persistence/schemas/notification.schema.ts) | The domain classes have no ORM decorators.                                                               |
+| Identity        | Other contexts are referenced by ID only (`recipientId`, `matchId`)                                                                                                                                                                   | No association to `Match` or `Player`, so the Notification context stays independent.                    |
+
+#### Consequences and alternatives
+
+- **+** The state rules of a delivery are tested without a database.
+- **+** The repository hides `FOR UPDATE SKIP LOCKED` and the cursor query from the use cases.
+- **−** The rule "visible in the bell" is written twice: in `Notification.isVisibleInApp` and as a
+  filter (`VISIBLE`) in the repository. This is the same smell as 5.3 and 6.1; a _Specification_
+  would fix it (see 5.9).
+- **−** The repository needs raw SQL for two methods, so the in-memory repository of the tests can
+  drift from the real one.
+
+_Alternatives:_ `Delivery` as an aggregate of its own (the relay would not be able to update the
+visible time of the notification in the same step); one table with the channel state in JSON (no
+queries for the relay).
+
+### 5.9 Keeping the bell up to date — fixed-interval polling with cursor, and patterns not adopted
+
+#### Problem in context
+
+The client must show a new notification within a few seconds. There is no push connection to
+the browser, and the update frequency is low: a few notifications per match.
+
+#### The pattern: selection and implementation
+
+**Pattern and rationale.** _Fixed-interval polling_ (Anubhav): the client asks at a constant
+interval, here every 5 s, which is far from the 300 ms "short polling" anti-pattern. A _cursor_
+makes each request return only what is new, so the common answer (nothing new) is small. The client
+is kept lean: merge, deduplicate, and resynchronise fully on focus and after marking as read.
+
+**Mapping to the implementation.**
+
+| Pattern role     | Concrete implementation                                                                                                                                             | Explanation                                                                                                         |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Polling endpoint | [`notificationRoutes`](../apps/api/src/http/routes/notifications.ts) `GET /`, [`ListNotifications`](../apps/api/src/application/notification/list-notifications.ts) | Returns `{ items, unreadCount, cursor }`; `limit` 1 to 50, default 20.                                              |
+| Cursor           | [`encodeCursor` and `decodeCursor`](../apps/api/src/application/notification/cursor.ts)                                                                             | Opaque; `(sentAt, id)` of the newest item returned; oldest-first page after the cursor, newest first in the answer. |
+| Client policy    | [`useNotifications`](../apps/web/src/lib/notifications.ts)                                                                                                          | 5 s interval, paused when hidden, error backoff up to 60 s, full resync on focus and after mark-read.               |
+| Cache bound      | `NOTIFICATIONS_PAGE_SIZE` = 20                                                                                                                                      | Equal to the server page size, so the cache never holds more than a full fetch.                                     |
+
+#### Consequences and alternatives
+
+- **+** Plain HTTP, no extra infrastructure, easy to test and to debug.
+- **+** The cursor keeps the idle answer small and a backlog is delivered without gaps.
+- **−** Constant traffic and a delay of up to 5 s (plus the relay cycle).
+- **−** With several relays a `sentAt` cursor can skip an item until the next focus resync (D9).
+
+#### Patterns considered and not adopted
+
+| Pattern                                        | Why not                                                                                                                                                                                                                                                              |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ETag / conditional GET (`If-None-Match`)       | Built first, then removed. The cursor already keeps an idle poll small; the ETag needed server state and about doubled the client logic for a negligible gain at our scale. **Lesson:** applying a pattern for its own sake can add more complexity than it removes. |
+| Long polling, SSE, WebSocket                   | Hold connections and need connection handling. Not needed for infrequent updates. **Future evolution** when scale or latency demand it; only the transport changes, the Real-Time Gateway (4.1) is a possible host.                                                  |
+| Transaction log tailing (relay)                | No polling delay, but needs CDC tooling and extra infrastructure. The polling publisher is enough for a few notifications per match.                                                                                                                                 |
+| Message broker (Kafka, RabbitMQ)               | Would still need an outbox for the dual write, and adds operations. In-process events and the database are enough in one deployable.                                                                                                                                 |
+| Jitter and adaptive polling                    | Few clients and no synchronised start, so no thundering herd; a fixed interval keeps behaviour predictable.                                                                                                                                                          |
+| Savepoint per handler in the dispatcher        | The dispatcher of the Match context does not do it, and it would move a rule of Notification into Match infrastructure. Replaced by `ON CONFLICT DO NOTHING` (5.6).                                                                                                  |
+| Periodic full resync, `unread` mismatch resync | Safety nets for the multi-relay race, with more requests and client state. Replaced by resync on focus and an accepted, documented risk (D9).                                                                                                                        |
+
+**Patterns that can be used when needed.**
+
+| Pattern                                | Where it would help                                                                                                                    |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Specification (as `OverdueMatch`, 5.3) | One `VisibleInApp` rule for `Notification.isVisibleInApp` and the repository filter, which today duplicate it.                         |
+| State                                  | If `Delivery` states get behaviour of their own (for example `RETRY_SCHEDULED`); today an enum with guards is simpler.                 |
+| Retry with exponential backoff         | For `EmailSender`: a `nextAttemptAt` column and a per-channel policy, because a real provider fails more often than the in-app sender. |
+| Strategy with registry                 | If channels get different retry, batching or templating rules.                                                                         |
+| Cursor lookback                        | If the API runs several relays (D9).                                                                                                   |
+
 ## 6. Existing code smells and possible refactorings
 
 ### 6.1 Duplicated Code — selection rules in the repository adapters
@@ -610,6 +1235,21 @@ becomes worthwhile.
 
 **Implementation status: open.**
 
+## Deliverables Iteration 2
+
+| Artifact                                 | Location                                                                  |
+| ---------------------------------------- | ------------------------------------------------------------------------- |
+| This design document                     | `docs/design.md` (4.2 change scenario, 5.4 to 5.9 patterns)               |
+| Event contract (authoritative)           | `apps/api/src/domain/shared/events/`; subscriber side in `docs/events.md` |
+| Domain model (draw.io XML)               | `docs/DomainModel.drawio`                                                 |
+| Component diagram (draw.io XML)          | `docs/ComponentDiagram.drawio`                                            |
+| Domain model and component diagram (PDF) | to be exported again from the draw.io files                               |
+
+### References
+
+- Transactional Outbox, microservices.io: https://microservices.io/patterns/data/transactional-outbox.html
+- Anubhav, "System Design Day 14: Polling — The Simplest Communication Pattern in Distributed Systems", Medium, 29/12/2025: https://medium.com/@anubhav020909/system-design-day-14-polling-the-simplest-communication-pattern-in-distributed-systems-ebd78057e9eb
+
 ## Deliverables Iteration 1
 
 | Artifact                         | Location                       |
@@ -619,273 +1259,6 @@ becomes worthwhile.
 | Domain model (draw.io XML)       | `docs/DomainModel.drawio`      |
 | Component diagram (draw.io XML)  | `docs/ComponentDiagram.drawio` |
 | Component diagram (PDF)          | `docs/ComponentDiagram.pdf`    |
-
-## Iteration: 2 (sprint ending 23/11/2026)
-
-## Objectives: Notification bounded context (Person C): Change Scenario, Coupling and Cohesion Analysis, and Design Decisions
-
----
-
-### 1. Change scenario
-
-> **"A player is told, inside the app, when something happens in their matches (their turn, a finished match, an expired match), even if the player is not looking at that match."**
-
-#### 1.1 Description
-
-In iteration 1 the notification was only a `<<use>>` dependency on the external Notification Interface. Now the **Notification** bounded context is implemented:
-
-- Domain events of the match (`TurnPassed`, `MatchCompleted`, `MatchExpired`) create a **Notification** for each affected player.
-- Each Notification has one **Delivery** per channel. Today only `IN_APP` exists; `EMAIL` is a port without implementation.
-- The web client shows a bell with an unread counter and learns about new notifications by polling.
-
-#### 1.2 Why this change is plausible
-
-- The project description says players do not need to be online at the same time as the opponent, so they must be told when the match needs them.
-- E-mail or push channels are a natural next request, so the context must accept new channels without changing the rules that create notifications.
-- The Match context is owned by another person (Person B), so the contract between both contexts must be explicit.
-
-#### 1.3 Parts of the system affected
-
-| Part                                                      | Impact                                                               |
-| --------------------------------------------------------- | -------------------------------------------------------------------- |
-| Notification context (domain, application, infra)         | New: `Notification`, `Delivery`, handlers, relay, repository         |
-| Event contract (`domain/shared/events`, `docs/events.md`) | New: draft v1, proposed by Person C, to be validated by Person B     |
-| Backend API (HTTP)                                        | New: `GET /api/notifications` and `POST /api/notifications/:id/read` |
-| Client (React Web App)                                    | Medium: bell, polling with backoff, expired-match state              |
-| Match / Gameplay Service                                  | Small, **not done here**: must publish the events (Person B)         |
-| Database                                                  | New tables `notification` and `notification_delivery`                |
-| Matchmaking, Gamification, Social, Account                | None                                                                 |
-
----
-
-### 2. Situation before the change
-
-- Match and Social called the Notification Interface directly (`<<use>>` arrows in the component diagram). There was no stored notification, no read state, and no guarantee that a notification is sent if (and only if) the match change was saved.
-- A failure of the provider could break or silently lose the notification of a turn.
-
-**Current cohesion:** low for notifications: the sending of messages is spread over the services that produce the facts.
-
----
-
-### 3. Alternatives analyzed and decision records
-
-The context is built around the **Transactional Outbox** pattern ([microservices.io](https://microservices.io/patterns/data/transactional-outbox.html)). Its terms are used in the code and diagrams: _Sender_ (the service that changes the state), _Database_, _Message outbox_ (a table that stores the messages), and _Message relay_ (a process that reads the outbox and publishes). The pattern guarantees that "messages are sent if and only if the database transaction commits", and it does not need a distributed transaction (2PC). The relay has two known implementations, **Polling publisher** and **Transaction log tailing**. Because the relay "may publish a message more than once", consumers must be **idempotent** (for example by tracking the ids of processed messages), and message ordering must be considered.
-
-For the client we follow the article of Anubhav, [_System Design Day 14: Polling — The Simplest Communication Pattern in Distributed Systems_](https://medium.com/@anubhav020909/system-design-day-14-polling-the-simplest-communication-pattern-in-distributed-systems-ebd78057e9eb) (Medium, 29/12/2025). Fixed-interval polling is the most common kind: simple, plain HTTP, no extra infrastructure. Short polling (around 300 ms) is called an anti-pattern, and long polling holds connections open. The article lists techniques that make polling safer (long polling, exponential backoff, timestamps or cursors, ETags / `If-Modified-Since`, random jitter, batching updates in one response). Polling fits infrequent updates, no strict real-time need and moderate scale, and many systems start with polling and move to push (WebSockets, SSE) when scale or latency demand it.
-
-In the records below, **Outbox** means the microservices.io article and **Polling** means the Anubhav article.
-
-#### D1. Event contract between Match and Notification
-
-| Option                                                             | Assessment                                                                                |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| A. Wait for Person B to publish the contract                       | Blocks the sprint; the contract does not exist yet                                        |
-| B. Notification calls Match/Matchmaking code or queries its tables | Direct coupling to another context, no isolation                                          |
-| C. **Draft contract v1 in a neutral module, validated later by B** | Unblocks the work; both contexts depend on a small, stable contract and not on each other |
-
-**Choice: C.** `DomainEvent<Name, Payload>` with `eventId`, `name`, `version`, `occurredAt`, `payload`, and the events `TurnPassed`, `MatchCompleted`, `MatchExpired`, in `apps/api/src/domain/shared/events/`, documented in `docs/events.md` as "proposal v1, to be validated by B". Notification imports only this module. Match event recording and the dispatcher are Person B's scope; here the handlers are tested with fake events.
-
-**Rationale.** Outbox says the _Sender_ writes the message in its own transaction; for that the Sender needs an agreed message format. A versioned contract (`version: 1`) lets B change the payload later without breaking consumers silently. Dependency risk: if B changes names or fields, only the contract module and the handlers change.
-
-#### D2. Branch stacked on PR #14
-
-| Option                                              | Assessment                                             |
-| --------------------------------------------------- | ------------------------------------------------------ |
-| A. Branch from `main`                               | Needs a fake identity for the recipient                |
-| B. **Stack on PR #14 (account / friend challenge)** | Uses the real session (`requireSession`, `playerIdOf`) |
-
-**Choice: B.** Notifications belong to an authenticated player, and the friend-challenge context is the reference pattern for repositories, use cases and routes. The cost is that the PR must be merged after #14.
-
-#### D3. IN_APP delivery goes through the outbox relay
-
-| Option                                                                                              | Assessment                                                        |
-| --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| A. In-app notification is visible as soon as it is saved; only e-mail uses the relay                | Two code paths; the in-app channel would not exercise the pattern |
-| B. **Every Delivery is created `PENDING` in the same transaction as the event; the relay sends it** | One path for all channels; new channels need only a new sender    |
-
-**Choice: B.** `InAppSender` just succeeds and marks the delivery `SENT`; `EmailSender` is only a port (`DeliverySender`) and no `EMAIL` delivery is created yet. "Read" is separate state (`readAt` on `Notification`). `GET` lists notifications whose `IN_APP` delivery is `SENT`.
-
-**Rationale.** The Message outbox is the table of `Delivery` rows with status `PENDING`; the Message relay publishes them. Saving the Notification and its Deliveries in the same transaction as the event gives "sent if and only if the transaction commits" without 2PC (Outbox). A delivery state (`PENDING`, `SENT`, `FAILED`) is different from the read state, because a notification can be sent and still unread.
-
-#### D4. What the Notification stores
-
-| Option                                                                             | Assessment                                |
-| ---------------------------------------------------------------------------------- | ----------------------------------------- |
-| A. Only the type and an id; read the rest from Match when shown                    | Cross-context queries; breaks isolation   |
-| B. Final text stored in the database                                               | Fixes language and wording in the backend |
-| C. **Type, `eventId`, `recipientId`, `matchId` and the data carried by the event** | Self-contained, no cross-context query    |
-
-**Choice: C.** `data` is a small JSON object (for example `outcome` for the recipient and `winnerId`). The human text is built in the frontend from `type` and `data`.
-
-**Rationale.** The Notification context must be readable without asking Match. The text stays in the client, where language and wording change often.
-
-#### D5. Message relay = Polling publisher
-
-| Option                     | Assessment (Outbox)                                                                                  |
-| -------------------------- | ---------------------------------------------------------------------------------------------------- |
-| A. Transaction log tailing | No polling delay, but needs database-specific tooling (log reader, CDC) and extra infrastructure     |
-| B. **Polling publisher**   | Simple; works with plain SQL on the current database; the cost is a small delay and repeated queries |
-
-**Choice: B.** An interval job started in `main.ts` (`NOTIFICATION_RELAY_INTERVAL_MS`, default 1000) with its own EntityManager context (`em.fork()`) selects `PENDING` deliveries in batches with `FOR UPDATE SKIP LOCKED` inside a transaction.
-
-**Rationale.** The load is low (a few notifications per match), so the Polling publisher is enough and needs no new infrastructure. `SKIP LOCKED` lets two instances of the API run the relay without sending the same row at the same time. If the volume grows, the relay can be replaced by log tailing without changing handlers or senders, because they only see the outbox.
-
-#### D6. Retries
-
-| Option                                                                 | Assessment                                                               |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| A. Retry forever                                                       | A broken delivery blocks the batch and hides the problem                 |
-| B. Exponential backoff per delivery                                    | Fewer wasted attempts, but needs a `nextAttemptAt` column and more rules |
-| C. **Fixed interval: one attempt per relay cycle, at most N attempts** | Simple, observable, no extra column                                      |
-
-**Choice: C.** Default N = 5 (`NOTIFICATION_MAX_ATTEMPTS`). On failure: `attempts++`, `lastError`, `lastAttemptAt`; when `attempts` reaches N the delivery becomes `FAILED` (terminal).
-
-**Rationale.** The only sender today is `InAppSender`, which hardly fails. A bounded number of attempts gives a clear end state. Backoff per delivery is a future step for real external channels (e-mail).
-
-#### D7. Idempotency
-
-| Option                                                  | Assessment                                                              |
-| ------------------------------------------------------- | ----------------------------------------------------------------------- |
-| A. Hope the event is handled once                       | Not true: the relay is at-least-once and a dispatcher can repeat events |
-| B. Check only in code                                   | Race between two handlers                                               |
-| C. **Check in the handler and add a UNIQUE constraint** | Simple check in the normal case, database as the last guard             |
-
-**Choice: C.** `Notification` has `eventId`; `UNIQUE (event_id, recipient_id)`. The handler first asks `existsForEvent(eventId, recipientId)`; the constraint is the backstop. The `Delivery.id` is passed to senders as the idempotency key.
-
-**Rationale.** Outbox states that the Message relay "may publish a message more than once", so the consumer must be an idempotent consumer that tracks the ids of processed messages; here the processed id is `(eventId, recipientId)`. Message ordering is not guaranteed across notifications, which is acceptable because each notification is independent and the list is ordered by when it became visible (D9), not by `createdAt`.
-
-#### D8. Isolation enforced by tool
-
-| Option                                      | Assessment                                   |
-| ------------------------------------------- | -------------------------------------------- |
-| A. Convention in the documentation          | Easy to break in a review that is in a hurry |
-| B. **Biome `noRestrictedImports` override** | Fails the CI when the rule is broken         |
-
-**Choice: B.** A new override in the root `biome.json` for notification files (`domain/notification/**`, `application/notification/**`, the notification infrastructure and the HTTP route) forbids imports of `domain/match` and `domain/matchmaking`, using the specific paths and their index re-exports where feasible. Allowed: `domain/shared/events`.
-
-**Rationale.** The decision of D1 is only worth something if it is enforced. Low coupling is checked by the CI (`bunx biome ci .`), not by memory.
-
-#### D9. Polling API: cursor and ETag
-
-| Option                         | Assessment (Polling)                                              |
-| ------------------------------ | ----------------------------------------------------------------- |
-| A. Always return the full list | Simple, but repeats data and cost grows with the history          |
-| B. Cursor only                 | Returns only new items, but an unchanged answer still has a body  |
-| C. ETag only                   | Saves bandwidth, but not the work of reading old items            |
-| D. **Cursor and ETag**         | Delta of new items, and a `304` with no body when nothing changed |
-
-**Choice: D.** `GET /api/notifications?since=<cursor>&limit=<1..50, default 20>` returns `{ items, unreadCount, cursor }`; the cursor is opaque (the position of the newest visible item) and stays the same if there is nothing new. The server sends an `ETag` built from the polling state of the recipient (count, last update, unread count, `since`, `limit`) and answers `If-None-Match` with `304`. All new items come in one response (batching). `POST /api/notifications/:id/read` returns `204` and is idempotent; `404` if the notification is not the caller's.
-
-**Rationale.** These are three of the techniques listed by Polling: timestamps or cursors, ETags / `If-Modified-Since`, and batching updates in one response. They make the common case (nothing new) cheap.
-
-**Ordering and cursor (deliberate deviation from the original spec).** The original spec sorted the list by `createdAt`. The list is instead ordered by the `sentAt` of the IN_APP delivery, then by `id` (newest first), and the cursor is the position `(sentAt, id)` of the newest item **returned**. Reason: an item is visible only after the relay sends it, so visibility depends on the relay. With `createdAt`, an item created earlier but sent later would land _behind_ a client cursor and never be returned. With `sentAt` the stream only grows at its end, which is what a cursor needs. With `since`, the server returns the **oldest** `limit` items after the cursor (ascending `(sentAt, id)`, shown newest first) and the cursor moves to the newest of those, so a backlog larger than `limit` is delivered over successive polls without skipping any item. Ties on `sentAt` are broken by `id`. The supporting indexes are on `notification_delivery`: `(notification_id, channel, status)` for the visibility lookups, and a partial index on PENDING rows for the relay claim.
-
-#### D10. Client polling policy
-
-| Option                                                           | Assessment (Polling)                                                                                          |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| A. Short polling (around 300 ms)                                 | Called an anti-pattern: load without benefit                                                                  |
-| B. Long polling                                                  | Holds connections; more server work; not needed for infrequent updates                                        |
-| C. WebSocket / SSE now                                           | Needs connection handling; too much for this change (the Real-Time Gateway already exists for live play only) |
-| D. **Fixed-interval polling, every 5 s, with safety techniques** | Simplest, plain HTTP, no extra infrastructure                                                                 |
-
-**Choice: D.** React Query polls every 5 s; it pauses when the tab is hidden (`refetchIntervalInBackground: false`) and refetches on focus; on error it uses exponential backoff (5 s, 10 s, 20 s, up to 60 s) and returns to 5 s after a success. Cursor, ETag and batching come from D9. **Not adopted:** random jitter (few clients, no synchronized start, so no thundering herd to spread) and adaptive polling (the interval is not changed according to activity, to keep the behavior predictable).
-
-**Rationale.** 5 s is a fixed-interval polling, not the short polling of the anti-pattern. A turn-based game has infrequent updates, no strict real-time need and a moderate scale, which is where Polling says polling fits. **Evolution path:** when scale or latency demand it, replace the polling by push (SSE or WebSocket). Only the transport changes: the outbox, the handlers, the `Notification` model and the API view stay. The Real-Time Gateway of iteration 1 is a possible host for it.
-
-#### D11. Cursor on `sentAt` and the multi-relay race
-
-The cursor is a position in `(sentAt, id)` (D9). `sentAt` is set by the relay when it records the success, inside the relay transaction. If two or more relays run at the same time, relay X can take `sentAt = t1` but commit after relay Y has committed an item with `sentAt = t2 > t1` and a client has already polled past `t2`. The item of X then appears **behind** the client cursor and an incremental poll never returns it.
-
-| Option                                    | Assessment                                                                                                           |
-| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| A. Cursor lookback (overlap window)       | Server returns items from `cursor - delta`; more data per poll and `delta` must exceed the longest relay transaction |
-| B. Document that only one relay may run   | No code, but a silent constraint that breaks when the API is scaled out                                              |
-| C. **Periodic full resync on the client** | No server change; the client also does a full list (no `since`) every N polls, on top of the focus resync            |
-
-**Choice: C, with N = 12** (`FULL_RESYNC_EVERY_N_POLLS` in `apps/web/src/lib/notifications.ts`, about once a minute at 5 s). The counter resets on any full resync (focus, after mark-read, unread mismatch, periodic).
-
-**Rationale.** The full resync is a bounded, cheap safety net (one extra request per minute, and `limit` items), and it also repairs other drift (read state changed on another device, see below). **Accepted cost:** an item can show up to about 60 s late, and only when 2 or more relays run concurrently. Today there is a single in-process relay with an overlap guard, so the race does not happen. The client also schedules a full resync when, after merging an incremental response, the server `unreadCount` differs from the number of unread items it holds (and no mark-read is pending), and it keeps at most the newest 50 items in the cache.
-
-#### D12. Concurrent duplicate event in the dispatcher
-
-Handlers check `existsForEvent` first and `UNIQUE (event_id, recipient_id)` is the backstop (D7). If two requests record the same event concurrently, both can pass the check and the second `save` fails with `DomainError CONFLICT`. In B's in-process dispatcher the handler runs inside the Match transaction, so an unhandled CONFLICT would roll back the **Match change** because of a duplicate notification.
-
-| Option                                         | Assessment                                                                                                                                                     |
-| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A. `INSERT ... ON CONFLICT DO NOTHING`         | Atomic and no error, but the repository must report "not inserted" and the aggregate/children (deliveries) need special handling; changes the persistence code |
-| B. **Savepoint per handler in the dispatcher** | The dispatcher runs each handler in a nested transaction; `CONFLICT` means "already processed"                                                                 |
-| C. Accept the risk                             | A rare concurrent duplicate would fail the user's action                                                                                                       |
-
-**Choice: B.** B's dispatcher must run each handler inside a SAVEPOINT (nested transaction) and treat `DomainError` `CONFLICT` thrown by a notification handler as "already processed": release or roll back the savepoint and continue. Any other error still rolls back the whole transaction. The Notification code is **not** changed to `ON CONFLICT`.
-
-**Rationale.** The failure is a normal, expected outcome of at-least-once handling, and isolating handlers with a savepoint is a property the dispatcher needs anyway (a notification problem should not undo a Match change). This is a contract on Person B's code, documented in `docs/events.md`; until B implements it, the risk is the one of option C.
-
----
-
-## 4. Cohesion analysis
-
-| Criterion                          | Before (direct `<<use>>` calls)       | After (Notification context)                                |
-| ---------------------------------- | ------------------------------------- | ----------------------------------------------------------- |
-| Responsibility of Match            | Rules **and** the sending of messages | Only rules; it publishes events                             |
-| Responsibility of Notification     | Does not exist                        | Create, store, deliver and read notifications (functional)  |
-| Reasons for Notification to change | -                                     | New channel, new notification text or type, delivery policy |
-| Repeated rules                     | Each service decides when to notify   | One place maps events to recipients                         |
-
-## 5. Coupling analysis
-
-| Criterion                          | Before                       | After                                                              |
-| ---------------------------------- | ---------------------------- | ------------------------------------------------------------------ |
-| Match → Notification               | Direct call to the interface | Match depends only on the event contract (published by B)          |
-| Notification → Match / Matchmaking | -                            | None in code (Biome rule, D8); ids only (`recipientId`, `matchId`) |
-| Shared state                       | Not stored                   | Own tables; saved in the Unit of Work of the caller                |
-| Client interface                   | Not defined                  | One REST interface, polled; replaceable by SSE/WebSocket           |
-| External provider                  | Called inside the use case   | Behind the `DeliverySender` port, called by the relay              |
-
-### 5.1 Accepted costs
-
-- Delivery is **eventually consistent**: a notification appears after the next relay cycle (about 1 s) and the next client poll (up to 5 s).
-- Duplicates are possible at the relay, so every consumer and sender must be idempotent.
-- Polling creates constant (small) traffic; an `ETag` reduces the size of the answer but not the number of requests.
-- The work is blocked until Person B publishes the events and the dispatcher; the contract is a proposal until B validates it.
-
-### 5.2 Open points
-
-- Validation of the event contract v1 by Person B (names, fields, versioning).
-- Retention of old notifications and a limit of the table size.
-- Ordering: notifications are ordered by the `sentAt` of the IN_APP delivery, then by `id` (D9); this is not creation order, and strict ordering of deliveries is not guaranteed.
-- When to add the `EMAIL` channel, and a backoff policy for it.
-- When to replace polling by SSE or WebSocket.
-
----
-
-## 6. Effect on the diagrams
-
-| Decision                                                                              | Where it appears                                        |
-| ------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `Notification`, `Delivery`, `NotificationType`, `DeliveryChannel`, `DeliveryStatus`   | `DomainModel.drawio` (package Notification)             |
-| `<<event>>` `TurnPassed`, `MatchCompleted`, `MatchExpired` (contract v1)              | `DomainModel.drawio`                                    |
-| `recipientId` and `matchId` as plain ids (no association)                             | `DomainModel.drawio`                                    |
-| Notification Service (handlers, repository / outbox, message relay, `DeliverySender`) | `ComponentDiagram.drawio`                               |
-| Match → events → Notification handlers → outbox → relay                               | `ComponentDiagram.drawio`                               |
-| Web client → `GET /api/notifications`, `POST /api/notifications/:id/read`             | `ComponentDiagram.drawio` (Notifications API interface) |
-
-The old arrows Match → Notification Interface and Social → Notification Interface were kept but rerouted to make room; the external Notification Interface is reused (future `EmailSender`) and not duplicated. The PDFs were not regenerated because they need draw.io; they show iteration 1 until they are exported again.
-
-## Deliverables Iteration 2
-
-| Artifact                                 | Location                                               |
-| ---------------------------------------- | ------------------------------------------------------ |
-| This design document                     | `docs/design.md`                                       |
-| Event contract (draft v1)                | `docs/events.md`, `apps/api/src/domain/shared/events/` |
-| Domain model (draw.io XML)               | `docs/DomainModel.drawio`                              |
-| Component diagram (draw.io XML)          | `docs/ComponentDiagram.drawio`                         |
-| Domain model and component diagram (PDF) | to be exported again from the draw.io files            |
-
-### References
-
-- Transactional Outbox, microservices.io: https://microservices.io/patterns/data/transactional-outbox.html
-- Anubhav, "System Design Day 14: Polling — The Simplest Communication Pattern in Distributed Systems", Medium, 29/12/2025: https://medium.com/@anubhav020909/system-design-day-14-polling-the-simplest-communication-pattern-in-distributed-systems-ebd78057e9eb
 
 ## Deliverables Iteration 0
 
