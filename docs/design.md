@@ -367,6 +367,9 @@ The analysis follows Khononov, as in 4.1.
 
 In every alternative the client needs one input view per kind; this is the feature itself.
 
+A second axis of variation is likely to follow: listening
+questions would play audio as prompts. With B the prompt becomes a second object next to the `AnswerKind`.
+
 | Integration                        | Strength                      | Distance             | Volatility | Result                    |
 | ---------------------------------- | ----------------------------- | -------------------- | ---------- | ------------------------- |
 | A1 `Question` ↔ rules of all kinds | low (little shared knowledge) | same class           | high       | **Local complexity**      |
@@ -402,9 +405,11 @@ In every alternative the client needs one input view per kind; this is the featu
 - The client still changes for every kind.
 - Typed answers can be rejected for a missing spelling; the catalog must list common variants.
 
-**Effect on the diagrams.**
+**Planned effect on the diagrams.** The scenario is not implemented yet, so the diagrams still show
+the current model. These changes will be made in `DomainModel.drawio` and `ComponentDiagram.drawio`
+together with the implementation.
 
-| Decision                                                                                       | Where it appears                                     |
+| Decision                                                                                       | Where it will appear                                 |
 | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
 | `Question` ◆ 1 `AnswerKind` (interface) with `MultipleChoice`, `TypedAnswer`, `WordOrder`      | `DomainModel.drawio` (Catalog)                       |
 | `AnswerOption` (4) owned by `MultipleChoice` instead of `Question`                             | `DomainModel.drawio` (Catalog)                       |
